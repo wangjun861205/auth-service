@@ -1,0 +1,16 @@
+[package]
+name = "nbauth"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-web = "4.3.1"
+chrono = "0.4.26"
+hex = "0.4.3"
+rand = "0.8.5"
+serde = { version = "1.0.181", features = ["derive"] }
+sha2 = "0.10.7"
+sqlx = { version = "0.7.1", features = ["postgres", "chrono"] }
+uuid = { version = "1.4.1", features = ["v4"] }
