@@ -95,7 +95,7 @@ async fn main() {
                     PostgresqlRepository,
                     RandomSecretGenerator,
                     ShaHasher,
-                    RedisCacher,
+                    RedisCacher<String>,
                     String,
                 >),
             ))
@@ -108,7 +108,7 @@ async fn main() {
                             RandomSecretGenerator,
                             FakeVerifyCodeManager,
                             ShaHasher,
-                            RedisCacher,
+                            RedisCacher<String>,
                             String,
                         >),
                     )
@@ -118,7 +118,7 @@ async fn main() {
                             PostgresqlRepository,
                             RandomSecretGenerator,
                             ShaHasher,
-                            RedisCacher,
+                            RedisCacher<String>,
                             String,
                         >),
                     )
@@ -127,7 +127,7 @@ async fn main() {
                         put().to(verify_secret::<
                             PostgresqlRepository,
                             ShaHasher,
-                            RedisCacher,
+                            RedisCacher<String>,
                             String,
                         >),
                     )

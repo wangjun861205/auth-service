@@ -1124,6 +1124,7 @@ dependencies = [
  "redis",
  "redis_rs",
  "serde",
+ "serde_json",
  "sha2",
  "sqlx",
  "uuid",

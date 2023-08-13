@@ -9,6 +9,7 @@ pub enum Error {
     ServiceError(String),
     ServerError(String),
     CacherError(String),
+    SerdeError(String),
 }
 
 impl ResponseError for Error {
@@ -18,6 +19,7 @@ impl ResponseError for Error {
             Self::ServiceError(_) => actix_web::http::StatusCode::BAD_REQUEST,
             Self::ServerError(_) => actix_web::http::StatusCode::INTERNAL_SERVER_ERROR,
             Self::CacherError(_) => actix_web::http::StatusCode::INTERNAL_SERVER_ERROR,
+            Self::SerdeError(_) => actix_web::http::StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
     fn error_response(&self) -> HttpResponse<actix_web::body::BoxBody> {
@@ -25,12 +27,17 @@ impl ResponseError for Error {
             Self::RepositoryError(msg) => {
                 HttpResponse::InternalServerError().body(format!("存储错误: {}", msg))
             }
-            Self::ServiceError(msg) => HttpResponse::InternalServerError().body(format!("{}", msg)),
+            Self::ServiceError(msg) => {
+                HttpResponse::InternalServerError().body(format!("服务错误: {}", msg))
+            }
             Self::ServerError(msg) => {
                 HttpResponse::InternalServerError().body(format!("服务器错误: {}", msg))
             }
             Self::CacherError(msg) => {
                 HttpResponse::InternalServerError().body(format!("缓存错误: {}", msg))
+            }
+            Self::SerdeError(msg) => {
+                HttpResponse::InternalServerError().body(format!("序列化错误: {}", msg.clone()))
             }
         }
     }
@@ -44,12 +51,18 @@ impl Display for Error {
 
 impl From<sqlx::Error> for Error {
     fn from(value: sqlx::Error) -> Self {
-        Self::RepositoryError(format!("存储错误: {}", value))
+        Self::RepositoryError(value.to_string())
     }
 }
 
 impl From<RedisError> for Error {
     fn from(value: RedisError) -> Self {
-        Self::CacherError(format!("缓存错误: {}", value))
+        Self::CacherError(value.to_string())
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(value: serde_json::Error) -> Self {
+        Self::SerdeError(value.to_string())
     }
 }

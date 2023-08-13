@@ -1,0 +1,10 @@
+version: "3.3"
+services:
+  redis:
+    container_name: nbauth-redis
+    image: "redis:latest"
+    pull_policy: if_not_present
+    environment:
+      - MAXMEMORY=100MB
+    ports:
+      - 6379:6379

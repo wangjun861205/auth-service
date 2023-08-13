@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use crate::error::Error;
 use crate::models::{App, CreateApp, CreateUser, QueryApp, QueryUser, UpdateUser, User};
 use std::fmt::Display;
@@ -39,8 +41,11 @@ pub trait Hasher {
     fn hash(&self, content: impl Into<String>, salt: impl Into<String>) -> Result<String, Error>;
 }
 
-// (hashed_secret, secret_salt)
-pub type SecretPair = (String, String);
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecretPair {
+    hashed_secret: String,
+    secret_salt: String,
+}
 
 pub trait Cacher<ID> {
     async fn put_app_secret(&mut self, id: ID, pair: SecretPair) -> Result<(), Error>;
@@ -85,9 +90,18 @@ where
         })
         .await?;
     repository.commit().await?;
-    cacher
-        .put_app_secret(id.clone(), (hashed_secret, secret_salt))
-        .await?;
+    if let Err(err) = cacher
+        .put_app_secret(
+            id.clone(),
+            SecretPair {
+                hashed_secret,
+                secret_salt,
+            },
+        )
+        .await
+    {
+        eprintln!("{:?}", err);
+    }
     Ok(RegisterAppResponse { id, secret })
 }
 
@@ -105,16 +119,44 @@ where
     ID: Default + Clone + Display,
 {
     let secret = secret.into();
-    if let Some((hashed_secret, secret_salt)) = cacher.get_app_secret(id.clone()).await? {
-        if hasher.hash(secret.clone(), &secret_salt)? == hashed_secret {
+    if let Some(SecretPair {
+        hashed_secret,
+        secret_salt,
+    }) = cacher
+        .get_app_secret(id.clone())
+        .await
+        .unwrap_or_else(|err| {
+            eprintln!("{:?}", err);
+            None
+        })
+    {
+        if hasher.hash(secret.clone(), secret_salt)? == hashed_secret {
             return Ok(());
         }
+        return Err(Error::ServiceError("应用凭证不正确".into()));
     }
-    if let Some(app) = repository.fetch_app(QueryApp { id_eq: Some(id) }).await? {
+    if let Some(app) = repository
+        .fetch_app(QueryApp {
+            id_eq: Some(id.clone()),
+        })
+        .await?
+    {
         let hashed_secret = hasher.hash(secret, &app.secret_salt)?;
         if hashed_secret != app.secret {
             return Err(Error::ServiceError("应用凭证不正确".into()));
         }
+        cacher
+            .put_app_secret(
+                id,
+                SecretPair {
+                    hashed_secret,
+                    secret_salt: app.secret_salt,
+                },
+            )
+            .await
+            .unwrap_or_else(|e| {
+                eprintln!("{:?}", e);
+            });
         return Ok(());
     }
     Err(Error::ServiceError("应用凭证不正确".into()))
@@ -214,7 +256,13 @@ where
         .await?;
     repository.commit().await?;
     cacher
-        .put_user_secret(id.clone(), (hashed_secret, secret_salt))
+        .put_user_secret(
+            id.clone(),
+            SecretPair {
+                hashed_secret,
+                secret_salt,
+            },
+        )
         .await?;
     Ok(RegisterUserResponse { id, secret })
 }
@@ -246,10 +294,21 @@ where
         req.app_secret,
     )
     .await?;
-    if let Some((hashed_secret, secret_salt)) = cacher.get_user_secret(req.id.clone()).await? {
-        if hasher.hash(&req.secret, &secret_salt)? == hashed_secret {
+    if let Some(SecretPair {
+        hashed_secret,
+        secret_salt,
+    }) = cacher
+        .get_user_secret(req.id.clone())
+        .await
+        .unwrap_or_else(|err| {
+            eprintln!("{:?}", err);
+            None
+        })
+    {
+        if hasher.hash(&req.secret, secret_salt)? == hashed_secret {
             return Ok(());
         }
+        return Err(Error::ServiceError("用户不存在或凭证不正确".into()));
     }
     if let Some(user) = repository
         .fetch_user(QueryUser {
@@ -340,7 +399,13 @@ where
         }
         repository.commit().await?;
         cacher
-            .put_user_secret(user.id.clone(), (hashed_secret, salt))
+            .put_user_secret(
+                user.id.clone(),
+                SecretPair {
+                    hashed_secret,
+                    secret_salt: salt,
+                },
+            )
             .await?;
         return Ok(LoginResponse {
             id: user.id,
