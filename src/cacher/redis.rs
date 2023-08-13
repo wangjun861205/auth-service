@@ -107,3 +107,84 @@ where
         Box::pin(async move { Err(Error::CacherError("配置错误".into())) })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::services::SecretPair;
+    use tokio;
+
+    #[tokio::test]
+    async fn put_and_get_app_secret() {
+        let apps_client =
+            redis::Client::open("redis://localhost:6379/1").expect("failed to connect to redis");
+        let apps_conn = apps_client
+            .get_async_connection()
+            .await
+            .expect("failed to build apps connection");
+        let users_client =
+            redis::Client::open("redis://localhost:6379/2").expect("failed to connect to redis");
+        let users_conn = users_client
+            .get_async_connection()
+            .await
+            .expect("failed to build users connection");
+        let mut cacher = RedisCacher {
+            apps_conn,
+            users_conn,
+            phantom: std::marker::PhantomData::<String>,
+        };
+        let pair = SecretPair {
+            hashed_secret: "test_secret".into(),
+            secret_salt: "test_salt".into(),
+        };
+        cacher
+            .put_app_secret("test_app".into(), pair.clone())
+            .await
+            .expect("failed to put app secret");
+        assert_eq!(
+            cacher
+                .get_app_secret("test_app".into())
+                .await
+                .expect("failed to get app secret")
+                .expect("app secret not found"),
+            pair
+        );
+    }
+
+    #[tokio::test]
+    async fn put_and_get_user_secret() {
+        let apps_client =
+            redis::Client::open("redis://localhost:6379/1").expect("failed to connect to redis");
+        let apps_conn = apps_client
+            .get_async_connection()
+            .await
+            .expect("failed to build apps connection");
+        let users_client =
+            redis::Client::open("redis://localhost:6379/2").expect("failed to connect to redis");
+        let users_conn = users_client
+            .get_async_connection()
+            .await
+            .expect("failed to build users connection");
+        let mut cacher = RedisCacher {
+            apps_conn,
+            users_conn,
+            phantom: std::marker::PhantomData::<String>,
+        };
+        let pair = SecretPair {
+            hashed_secret: "test_secret".into(),
+            secret_salt: "test_salt".into(),
+        };
+        cacher
+            .put_user_secret("test_user".into(), pair.clone())
+            .await
+            .expect("failed to put user secret");
+        assert_eq!(
+            cacher
+                .get_user_secret("test_user".into())
+                .await
+                .expect("failed to get user secret")
+                .expect("user secret not found"),
+            pair
+        );
+    }
+}

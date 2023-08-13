@@ -41,10 +41,10 @@ pub trait Hasher {
     fn hash(&self, content: impl Into<String>, salt: impl Into<String>) -> Result<String, Error>;
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SecretPair {
-    hashed_secret: String,
-    secret_salt: String,
+    pub hashed_secret: String,
+    pub secret_salt: String,
 }
 
 pub trait Cacher<ID> {
