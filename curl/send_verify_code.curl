@@ -1,0 +1,4 @@
+url=http://localhost:8000/api/v1/users/send_verify_code
+header="Content-Type: application/json"
+request=PUT
+data=@send_verify_code.json

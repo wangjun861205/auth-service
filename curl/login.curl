@@ -1,0 +1,4 @@
+url=http://localhost:8000/api/v1/users/login
+request=PUT
+header="Content-Type: application/json"
+data=@login.json

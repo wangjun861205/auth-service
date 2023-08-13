@@ -72,6 +72,18 @@ impl Repository<String> for PostgresqlRepository {
         }
         Ok(None)
     }
+
+    async fn exists_app(&mut self, query: QueryApp<String>) -> Result<bool, Error> {
+        Ok(query_scalar(
+            "SELECT EXISTS(
+            SELECT 1 FROM apps 
+            WHERE $1 IS NULL OR id = $1
+        )",
+        )
+        .bind(query.id_eq)
+        .fetch_one(&mut *self.tx)
+        .await?)
+    }
     async fn fetch_user(
         &mut self,
         query: crate::models::QueryUser<String>,
@@ -108,7 +120,8 @@ impl Repository<String> for PostgresqlRepository {
     }
     async fn insert_app(&mut self, app: crate::models::CreateApp) -> Result<String, Error> {
         Ok(query_scalar(
-            "INSERT INTO apps (name, secret, secret_salt) VALUES ($1, $2, $3) RETURNING id",
+            "INSERT INTO apps (name, secret, secret_salt) 
+            VALUES ($1, $2, $3) RETURNING id",
         )
         .bind(app.name)
         .bind(app.secret)
@@ -146,15 +159,17 @@ impl Repository<String> for PostgresqlRepository {
         user: crate::models::UpdateUser,
     ) -> Result<i64, Error> {
         Ok(query_scalar(
-            "
-        UPDATE users SET
-        secret = COASELCE($1, secret),
-        secret_salt = COASELCE($2, secret_salt)
-        WHERE ($3 IS NULL OR id = $3)
-        AND ($4 IS NULL OR phone = $4)
-        AND ($5 IS NULL OR email = $5)
-        AND ($6 IS NULL OR app_id = $6)
-        RETURNING *",
+            "WITH u AS (
+                UPDATE users SET
+                secret = COALESCE($1, secret),
+                secret_salt = COALESCE($2, secret_salt)
+                WHERE ($3 IS NULL OR id = $3)
+                AND ($4 IS NULL OR phone = $4)
+                AND ($5 IS NULL OR email = $5)
+                AND ($6 IS NULL OR app_id = $6)
+                RETURNING *
+            )
+            SELECT count(*) FROM u",
         )
         .bind(user.secret)
         .bind(user.secret_salt)
@@ -165,30 +180,34 @@ impl Repository<String> for PostgresqlRepository {
         .fetch_one(&mut *self.tx)
         .await?)
     }
+
+    async fn commit(self) -> Result<(), Error> {
+        Ok(self.tx.commit().await?)
+    }
 }
 
 impl FromRequest for PostgresqlRepository {
     type Error = Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self, Self::Error>>>>;
     fn extract(req: &actix_web::HttpRequest) -> Self::Future {
-        if let Some(pool) = req.app_data::<Data<PgPool>>() {
-            let pool = pool.clone();
+        if let Some(factory) = req.app_data::<Data<PostgresqlRepositoryFactory>>() {
+            let factory = factory.clone();
             return Box::pin(async move {
-                let tx = pool.begin().await?;
-                Ok(Self { tx })
+                let repo = factory.new_repository().await?;
+                Ok(repo)
             });
         }
-        Box::pin(async move { Err(Error::RepositoryError("无连接池".into())) })
+        Box::pin(async move { Err(Error::RepositoryError("无工厂函数".into())) })
     }
 
     fn from_request(req: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
-        if let Some(pool) = req.app_data::<Data<PgPool>>() {
-            let pool = pool.clone();
+        if let Some(factory) = req.app_data::<Data<PostgresqlRepositoryFactory>>() {
+            let factory = factory.clone();
             return Box::pin(async move {
-                let tx = pool.begin().await?;
-                Ok(Self { tx })
+                let repo = factory.new_repository().await?;
+                Ok(repo)
             });
         }
-        Box::pin(async move { Err(Error::RepositoryError("无连接池".into())) })
+        Box::pin(async move { Err(Error::RepositoryError("无工厂函数".into())) })
     }
 }
