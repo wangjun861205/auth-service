@@ -6,8 +6,10 @@ use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
 use crate::hasher::sha::ShaHasher;
+use actix_web::body::BoxBody;
 use actix_web::{
-    web::{post, put, scope, Data},
+    middleware::Logger,
+    web::{get, post, put, scope, Data},
     App, HttpServer,
 };
 use cacher::redis::{RedisCacher, RedisCacherFactory};
@@ -60,8 +62,31 @@ where
     async fn new_cacher(&self) -> Result<C, error::Error>;
 }
 
+fn wrap_logger<T>(
+    app: App<T>,
+) -> App<
+    impl actix_web::dev::ServiceFactory<
+        actix_web::dev::ServiceRequest,
+        Config = (),
+        Error = actix_web::Error,
+        InitError = (),
+    >,
+>
+where
+    T: actix_web::dev::ServiceFactory<
+        actix_web::dev::ServiceRequest,
+        Config = (),
+        Error = actix_web::Error,
+        InitError = (),
+        Response = actix_web::dev::ServiceResponse<BoxBody>,
+    >,
+{
+    app.wrap(Logger::new("%t %a %r %{User-Agent}i %T"))
+}
+
 #[actix_web::main]
 async fn main() {
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     dotenv::dotenv().ok();
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let pg_pool = PgPool::connect(&database_url)
@@ -79,6 +104,9 @@ async fn main() {
         redis::Client::open(users_redis_url).expect("Failed to connect to users redis database");
     HttpServer::new(move || {
         App::new()
+            .wrap(Logger::new(
+                "%{User-Agent}i\n%s\n%a\n%r\n%T\n=================================\n",
+            ))
             .app_data(Data::new(PostgresqlRepositoryFactory::new(pg_pool.clone())))
             .app_data(Data::new(FakeVerifyCodeManagerFactory::new(
                 email_map.clone(),
@@ -89,16 +117,23 @@ async fn main() {
                 apps_client.clone(),
                 users_client.clone(),
             )))
-            .service(scope("/api/v1/apps").route(
-                "",
-                post().to(register_app::<
-                    PostgresqlRepository,
-                    RandomSecretGenerator,
-                    ShaHasher,
-                    RedisCacher<String>,
-                    String,
-                >),
-            ))
+            .service(
+                scope("/api/v1/apps")
+                    .route(
+                        "",
+                        post().to(register_app::<
+                            PostgresqlRepository,
+                            RandomSecretGenerator,
+                            ShaHasher,
+                            RedisCacher<String>,
+                            String,
+                        >),
+                    )
+                    .route(
+                        "",
+                        get().to(handlers::app_list::<PostgresqlRepository, String>),
+                    ),
+            )
             .service(
                 scope("/api/v1/users")
                     .route(

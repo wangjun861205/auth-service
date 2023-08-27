@@ -14,11 +14,14 @@ pub struct CreateApp {
     pub secret_salt: String,
 }
 
+#[derive(Debug, Clone, Default)]
 pub struct QueryApp<ID>
 where
     ID: Default,
 {
     pub id_eq: Option<ID>,
+    pub name_like: Option<String>,
+    pub name_like_any: Option<Vec<String>>,
 }
 
 pub struct User<ID> {

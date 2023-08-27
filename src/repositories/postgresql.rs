@@ -129,6 +129,63 @@ impl Repository<String> for PostgresqlRepository {
         .fetch_one(&mut *self.tx)
         .await?)
     }
+    async fn query_apps(
+        &mut self,
+        query: QueryApp<String>,
+        page: i32,
+        size: i32,
+    ) -> Result<Vec<crate::models::App<String>>, Error> {
+        let apps = query_as::<Postgres, App<String>>(
+            "
+        SELECT * FROM apps
+        WHERE $1 IS NULL OR id = $1
+        AND $2 IS NULL OR name LIKE $2
+        AND $3 IS NULL OR name SIMILAR TO $3
+        LIMIT $4
+        OFFSET $5",
+        )
+        .bind(query.id_eq)
+        .bind(query.name_like)
+        .bind(if let Some(l) = query.name_like_any {
+            Some(format!("%({})%", l.join("|")))
+        } else {
+            None
+        })
+        .bind(size)
+        .bind((page - 1) * size)
+        .fetch_all(&mut *self.tx)
+        .await?;
+        Ok(apps
+            .into_iter()
+            .map(|a| crate::models::App {
+                id: a.id,
+                name: a.name,
+                secret: a.secret,
+                secret_salt: a.secret_salt,
+                created_at: a.created_at,
+                updated_at: a.updated_at,
+            })
+            .collect())
+    }
+
+    async fn count_apps(&mut self, query: QueryApp<String>) -> Result<i64, Error> {
+        Ok(query_scalar(
+            "SELECT count(*) FROM apps 
+            WHERE $1 IS NULL OR id = $1
+            AND $2 IS NULL OR name LIKE $2
+            AND $3 IS NULL OR name SIMILAR TO $3",
+        )
+        .bind(query.id_eq)
+        .bind(query.name_like)
+        .bind(if let Some(l) = query.name_like_any {
+            Some(format!("%({})%", l.join("|")))
+        } else {
+            None
+        })
+        .fetch_one(&mut *self.tx)
+        .await?)
+    }
+
     async fn insert_user(
         &mut self,
         user: crate::models::CreateUser<String>,

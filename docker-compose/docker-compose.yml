@@ -8,3 +8,13 @@ services:
       - MAXMEMORY=100MB
     ports:
       - 6379:6379
+  postgres:
+    container_name: nbauth-postgres
+    image: "postgres:latest"
+    pull_policy: if_not_present
+    ports:
+      - 15432:5432
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_LOG_STATEMENT=all

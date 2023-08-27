@@ -75,6 +75,11 @@ where
         let s = serde_json::to_string(&pair)?;
         Ok(self.users_conn.set(id, s).await?)
     }
+
+    async fn delete_app_secret(&mut self, id: ID) -> Result<(), Error> {
+        self.apps_conn.del(id).await?;
+        Ok(())
+    }
 }
 
 impl<ID> FromRequest for RedisCacher<ID>

@@ -10,6 +10,14 @@ where
     async fn insert_app(&mut self, app: CreateApp) -> Result<ID, Error>;
     async fn fetch_app(&mut self, query: QueryApp<ID>) -> Result<Option<App<ID>>, Error>;
     async fn exists_app(&mut self, query: QueryApp<ID>) -> Result<bool, Error>;
+    async fn query_apps(
+        &mut self,
+        query: QueryApp<ID>,
+        page: i32,
+        size: i32,
+    ) -> Result<Vec<App<ID>>, Error>;
+    async fn delete_app(&mut self, id: ID) -> Result<i64, Error>;
+    async fn count_apps(&mut self, query: QueryApp<ID>) -> Result<i64, Error>;
     async fn insert_user(&mut self, user: CreateUser<ID>) -> Result<ID, Error>;
     async fn fetch_user(&mut self, query: QueryUser<ID>) -> Result<Option<User<ID>>, Error>;
     async fn update_user(&mut self, query: QueryUser<ID>, user: UpdateUser) -> Result<i64, Error>;
@@ -50,6 +58,7 @@ pub struct SecretPair {
 pub trait Cacher<ID> {
     async fn put_app_secret(&mut self, id: ID, pair: SecretPair) -> Result<(), Error>;
     async fn get_app_secret(&mut self, id: ID) -> Result<Option<SecretPair>, Error>;
+    async fn delete_app_secret(&mut self, id: ID) -> Result<(), Error>;
     async fn put_user_secret(&mut self, id: ID, secret: SecretPair) -> Result<(), Error>;
     async fn get_user_secret(&mut self, id: ID) -> Result<Option<SecretPair>, Error>;
 }
@@ -62,6 +71,7 @@ pub struct RegisterAppRequest {
 
 pub struct RegisterAppResponse<ID> {
     pub id: ID,
+    pub name: String,
     pub secret: String,
 }
 
@@ -84,7 +94,7 @@ where
     let hashed_secret = hasher.hash(&secret, &secret_salt)?;
     let id = repository
         .insert_app(CreateApp {
-            name: req.name,
+            name: req.name.clone(),
             secret: hashed_secret.clone(),
             secret_salt: secret_salt.clone(),
         })
@@ -102,7 +112,42 @@ where
     {
         eprintln!("{:?}", err);
     }
-    Ok(RegisterAppResponse { id, secret })
+    Ok(RegisterAppResponse {
+        id,
+        name: req.name,
+        secret,
+    })
+}
+
+pub struct AppListRequest {
+    pub page: i32,
+    pub size: i32,
+    pub keywords: Option<String>,
+}
+
+pub async fn app_list<R, ID>(
+    repository: &mut R,
+    req: AppListRequest,
+) -> Result<(Vec<App<ID>>, i64), Error>
+where
+    R: Repository<ID>,
+    ID: Default + Clone + Display,
+{
+    let query = QueryApp {
+        name_like_any: req
+            .keywords
+            .map(|keywords| keywords.split_whitespace().map(str::to_owned).collect()),
+        ..Default::default()
+    };
+    let total = repository.count_apps(query.clone()).await?;
+    let apps = repository.query_apps(query, req.page, req.size).await?;
+    Ok((apps, total))
+}
+
+pub async fn delete_app<R, C, ID>(repository: &mut R, mut cacher: C, id: ID) -> Result<i64, Error> {
+    let deleted = repository.delete_app(id.clone()).await?;
+    cacher.delete_app_secret(id).await?;
+    Ok(deleted)
 }
 
 async fn verify_app_secret<R, H, C, ID>(
@@ -138,6 +183,7 @@ where
     if let Some(app) = repository
         .fetch_app(QueryApp {
             id_eq: Some(id.clone()),
+            ..Default::default()
         })
         .await?
     {

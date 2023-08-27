@@ -1,8 +1,17 @@
 use crate::error::Error;
 use crate::services::{self, Cacher, Hasher, Repository, SecretGenerator, VerifyCodeManager};
-use actix_web::{web::Json, FromRequest, HttpResponse};
+use actix_web::{
+    web::{Json, Query},
+    HttpRequest, HttpResponse,
+};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ListResponse<T> {
+    list: Vec<T>,
+    total: i64,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RegisterAppRequest {
@@ -15,6 +24,7 @@ where
     ID: Default + Clone,
 {
     id: ID,
+    name: String,
     secret: String,
 }
 
@@ -42,7 +52,65 @@ where
     .await?;
     Ok(Json(RegisterAppResponse {
         id: res.id,
+        name: res.name,
         secret: res.secret,
+    }))
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AppListRequest {
+    page: i32,
+    size: i32,
+    keywords: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct App {
+    id: String,
+    name: String,
+    secret: String,
+    secret_salt: String,
+    created_at: String,
+    updated_at: String,
+}
+
+pub async fn app_list<R, ID>(
+    request: HttpRequest,
+    mut repository: R,
+    Query(req): Query<AppListRequest>,
+) -> Result<Json<ListResponse<App>>, Error>
+where
+    R: Repository<ID>,
+    ID: Default + Clone + Serialize + Display,
+{
+    let host = request.connection_info().host().to_owned();
+    if !host.contains("localhost") {
+        return Err(Error::ServiceError(
+            "this endpoint is only available in local".into(),
+        ));
+    }
+    let (apps, total) = services::app_list(
+        &mut repository,
+        services::AppListRequest {
+            page: req.page,
+            size: req.size,
+            keywords: req.keywords,
+        },
+    )
+    .await?;
+    Ok(Json(ListResponse {
+        list: apps
+            .into_iter()
+            .map(|app| App {
+                id: app.id.to_string(),
+                name: app.name,
+                secret: app.secret,
+                secret_salt: app.secret_salt,
+                created_at: app.created_at.to_string(),
+                updated_at: app.updated_at.to_string(),
+            })
+            .collect(),
+        total,
     }))
 }
 
