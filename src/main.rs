@@ -1,57 +1,56 @@
 #![feature(async_fn_in_trait)]
 
-use std::collections::HashMap;
-use std::env;
-use std::fmt::Display;
-use std::sync::{Arc, Mutex};
+pub mod core;
+pub mod handlers;
+pub mod impls;
 
-use crate::hasher::sha::ShaHasher;
-use actix_web::body::BoxBody;
+use core::service::Service;
+use std::convert::Infallible;
+use std::env;
+use std::sync::Mutex;
+use std::{error::Error as StdErr, fmt::Display};
+
+use crate::{
+    handlers::{SecretHeader, UIDHeader},
+    impls::{
+        cachers::redis::RedisCacher, hashers::sha::ShaHasher,
+        repositories::postgresql::PostgresqlRepository,
+        secret_generators::random::RandomSecretGenerator,
+        verify_code_managers::fake::FakeVerifyCodeManager,
+    },
+};
 use actix_web::{
     middleware::Logger,
-    web::{get, post, put, scope, Data},
+    web::{post, put, scope, Data},
     App, HttpServer,
 };
-use cacher::redis::{RedisCacher, RedisCacherFactory};
-use handlers::{login, register_app, register_user, send_verify_code, verify_secret};
-use hasher::sha::ShaHasherFactory;
-use repositories::postgresql::{PostgresqlRepository, PostgresqlRepositoryFactory};
-use secret_generators::random::RandomSecretGenerator;
+use core::{
+    cacher::Cacher, hasher::Hasher, repository::Repository, verify_code_manager::VerifyCodeManager,
+};
+use handlers::{login, register_user, send_verify_code, verify_secret};
 use serde::Serialize;
-use services::{Cacher, Hasher, Repository, VerifyCodeManager};
 use sqlx::PgPool;
-use verify_code_managers::fake::{FakeVerifyCodeManager, FakeVerifyCodeManagerFactory};
-
-pub(crate) mod cacher;
-pub(crate) mod error;
-pub(crate) mod handlers;
-pub(crate) mod hasher;
-pub(crate) mod models;
-pub(crate) mod repositories;
-pub(crate) mod secret_generators;
-pub(crate) mod services;
-pub(crate) mod verify_code_managers;
 
 pub trait RepositoryFactory<R, ID>
 where
     R: Repository<ID> + 'static,
     ID: Default + Clone + Serialize + Display,
 {
-    async fn new_repository(&self) -> Result<R, error::Error>;
+    async fn new_repository(&self) -> Result<R, Box<dyn StdErr>>;
 }
 
 pub trait VerifyCodeManagerFactory<V>
 where
     V: VerifyCodeManager + 'static,
 {
-    async fn new_verify_code_manager(&self) -> Result<V, error::Error>;
+    async fn new_verify_code_manager(&self) -> Result<V, Box<dyn StdErr>>;
 }
 
 pub trait HasherFactory<H>
 where
     H: Hasher + 'static,
 {
-    async fn new_hasher(&self) -> Result<H, error::Error>;
+    async fn new_hasher(&self) -> Result<H, Box<dyn StdErr>>;
 }
 
 pub trait CacherFactory<C, ID>
@@ -59,81 +58,43 @@ where
     C: Cacher<ID> + 'static,
     ID: Default + Clone + Serialize + Display,
 {
-    async fn new_cacher(&self) -> Result<C, error::Error>;
-}
-
-fn wrap_logger<T>(
-    app: App<T>,
-) -> App<
-    impl actix_web::dev::ServiceFactory<
-        actix_web::dev::ServiceRequest,
-        Config = (),
-        Error = actix_web::Error,
-        InitError = (),
-    >,
->
-where
-    T: actix_web::dev::ServiceFactory<
-        actix_web::dev::ServiceRequest,
-        Config = (),
-        Error = actix_web::Error,
-        InitError = (),
-        Response = actix_web::dev::ServiceResponse<BoxBody>,
-    >,
-{
-    app.wrap(Logger::new("%t %a %r %{User-Agent}i %T"))
+    async fn new_cacher(&self) -> Result<C, Box<dyn StdErr>>;
 }
 
 #[actix_web::main]
 async fn main() {
-    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     dotenv::dotenv().ok();
+    env_logger::init_from_env(
+        env_logger::Env::new()
+            .default_filter_or(dotenv::var("LOG_LEVEL").unwrap_or("info".to_string())),
+    );
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let pg_pool = PgPool::connect(&database_url)
         .await
         .expect("Failed to connect to Postgres");
-    let (phone_map, email_map) = (
-        Arc::new(Mutex::new(HashMap::new())),
-        Arc::new(Mutex::new(HashMap::new())),
-    );
-    let apps_redis_url = env::var("APPS_REDIS_URL").expect("REDIS_URL must be set");
     let users_redis_url = env::var("USERS_REDIS_URL").expect("REDIS_URL must be set");
-    let apps_client =
-        redis::Client::open(apps_redis_url).expect("Failed to connect to apps redis database");
     let users_client =
         redis::Client::open(users_redis_url).expect("Failed to connect to users redis database");
+
+    let service = Service::new(
+        PostgresqlRepository::new(pg_pool.clone()),
+        RedisCacher::<i32>::new(users_client),
+        ShaHasher {},
+        RandomSecretGenerator {},
+        FakeVerifyCodeManager::new(),
+    );
     HttpServer::new(move || {
         App::new()
             .wrap(Logger::new(
-                "%{User-Agent}i\n%s\n%a\n%r\n%T\n=================================\n",
+                &env::var("LOG_FORMAT").unwrap_or("%{User-Agent}i\n%s\n%a\n%r\n%T".to_owned()),
             ))
-            .app_data(Data::new(PostgresqlRepositoryFactory::new(pg_pool.clone())))
-            .app_data(Data::new(FakeVerifyCodeManagerFactory::new(
-                email_map.clone(),
-                phone_map.clone(),
+            .app_data(Data::new(Mutex::new(service.clone())))
+            .app_data(Data::new(UIDHeader(
+                env::var("UID_HEADER").unwrap_or("X-UID".to_owned()),
             )))
-            .app_data(Data::new(ShaHasherFactory::new()))
-            .app_data(Data::new(RedisCacherFactory::new(
-                apps_client.clone(),
-                users_client.clone(),
+            .app_data(Data::new(SecretHeader(
+                env::var("SECRET_HEADER").unwrap_or("X-SECRET".to_owned()),
             )))
-            .service(
-                scope("/api/v1/apps")
-                    .route(
-                        "",
-                        post().to(register_app::<
-                            PostgresqlRepository,
-                            RandomSecretGenerator,
-                            ShaHasher,
-                            RedisCacher<String>,
-                            String,
-                        >),
-                    )
-                    .route(
-                        "",
-                        get().to(handlers::app_list::<PostgresqlRepository, String>),
-                    ),
-            )
             .service(
                 scope("/api/v1/users")
                     .route(
@@ -154,6 +115,7 @@ async fn main() {
                             RandomSecretGenerator,
                             ShaHasher,
                             RedisCacher<String>,
+                            FakeVerifyCodeManager,
                             String,
                         >),
                     )
@@ -163,12 +125,22 @@ async fn main() {
                             PostgresqlRepository,
                             ShaHasher,
                             RedisCacher<String>,
+                            RandomSecretGenerator,
+                            FakeVerifyCodeManager,
                             String,
+                            Infallible,
                         >),
                     )
                     .route(
                         "send_verify_code",
-                        put().to(send_verify_code::<FakeVerifyCodeManager>),
+                        put().to(send_verify_code::<
+                            PostgresqlRepository,
+                            RedisCacher<String>,
+                            ShaHasher,
+                            RandomSecretGenerator,
+                            FakeVerifyCodeManager,
+                            String,
+                        >),
                     ),
             )
     })

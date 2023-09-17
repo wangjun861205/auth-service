@@ -1,11 +1,23 @@
-use crate::error::Error;
-use crate::services::{self, Cacher, Hasher, Repository, SecretGenerator, VerifyCodeManager};
+use crate::core::{
+    cacher::Cacher,
+    error::Error,
+    hasher::Hasher,
+    repository::Repository,
+    secret_generator::SecretGenerator,
+    service::{self, Service},
+    verify_code_manager::VerifyCodeManager,
+};
 use actix_web::{
-    web::{Json, Query},
+    web::{Data, Json},
     HttpRequest, HttpResponse,
 };
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
+use std::{
+    error::Error as StdErr,
+    fmt::{Debug, Display},
+    str::FromStr,
+};
+use tokio::sync::Mutex;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ListResponse<T> {
@@ -14,104 +26,8 @@ pub struct ListResponse<T> {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct RegisterAppRequest {
-    name: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RegisterAppResponse<ID>
-where
-    ID: Default + Clone,
-{
-    id: ID,
-    name: String,
-    secret: String,
-}
-
-pub async fn register_app<'a, R, S, H, C, ID>(
-    repository: R,
-    secret_generator: S,
-    hasher: H,
-    cacher: C,
-    Json(req): Json<RegisterAppRequest>,
-) -> Result<Json<RegisterAppResponse<ID>>, Error>
-where
-    R: Repository<ID>,
-    S: SecretGenerator,
-    H: Hasher,
-    C: Cacher<ID>,
-    ID: Default + Clone + Serialize + Display,
-{
-    let res = services::register_app(
-        repository,
-        secret_generator,
-        hasher,
-        cacher,
-        services::RegisterAppRequest { name: req.name },
-    )
-    .await?;
-    Ok(Json(RegisterAppResponse {
-        id: res.id,
-        name: res.name,
-        secret: res.secret,
-    }))
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct AppListRequest {
-    page: i32,
-    size: i32,
-    keywords: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct App {
-    id: String,
-    name: String,
-    secret: String,
-    secret_salt: String,
-    created_at: String,
-    updated_at: String,
-}
-
-pub async fn app_list<R, ID>(
-    request: HttpRequest,
-    mut repository: R,
-    Query(req): Query<AppListRequest>,
-) -> Result<Json<ListResponse<App>>, Error>
-where
-    R: Repository<ID>,
-    ID: Default + Clone + Serialize + Display,
-{
-    let host = request.connection_info().host().to_owned();
-    if !host.contains("localhost") {
-        return Err(Error::ServiceError(
-            "this endpoint is only available in local".into(),
-        ));
-    }
-    let (apps, total) = services::app_list(
-        &mut repository,
-        services::AppListRequest {
-            page: req.page,
-            size: req.size,
-            keywords: req.keywords,
-        },
-    )
-    .await?;
-    Ok(Json(ListResponse {
-        list: apps
-            .into_iter()
-            .map(|app| App {
-                id: app.id.to_string(),
-                name: app.name,
-                secret: app.secret,
-                secret_salt: app.secret_salt,
-                created_at: app.created_at.to_string(),
-                updated_at: app.updated_at.to_string(),
-            })
-            .collect(),
-        total,
-    }))
+pub struct DeleteResponse {
+    deleted: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -120,21 +36,26 @@ pub struct SendVerifyCodeRequest {
     phone: Option<String>,
 }
 
-pub async fn send_verify_code<V>(
-    mut verify_code_manager: V,
+pub async fn send_verify_code<R, C, H, S, V, ID>(
+    service: Data<Mutex<Service<R, C, H, S, V, ID>>>,
     Json(req): Json<SendVerifyCodeRequest>,
-) -> Result<HttpResponse, Error>
+) -> Result<HttpResponse, Box<dyn StdErr>>
 where
-    V: VerifyCodeManager,
+    R: Repository<ID> + Clone,
+    C: Cacher<ID> + Clone,
+    H: Hasher + Clone,
+    S: SecretGenerator + Clone,
+    V: VerifyCodeManager + Clone,
+    ID: Default + Clone + Display,
 {
-    services::send_verify_code(
-        &mut verify_code_manager,
-        services::SendVerifyCodeRequest {
+    service
+        .lock()
+        .await
+        .send_verify_code(service::SendVerifyCodeRequest {
             email: req.email,
             phone: req.phone,
-        },
-    )
-    .await?;
+        })
+        .await?;
     Ok(HttpResponse::Ok().finish())
 }
 
@@ -155,47 +76,35 @@ pub struct RegisterUserResponse<ID> {
 }
 
 pub async fn register_user<R, S, V, H, C, ID>(
-    repository: R,
-    secret_generator: S,
-    verify_code_manager: V,
-    hasher: H,
-    cacher: C,
+    service: Data<Mutex<Service<R, C, H, S, V, ID>>>,
     Json(req): Json<RegisterUserRequest<ID>>,
-) -> Result<Json<RegisterUserResponse<ID>>, Error>
+) -> Result<Json<RegisterUserResponse<ID>>, Box<dyn StdErr>>
 where
-    R: Repository<ID>,
-    S: SecretGenerator,
-    V: VerifyCodeManager,
-    H: Hasher,
-    C: Cacher<ID>,
+    R: Repository<ID> + Clone,
+    S: SecretGenerator + Clone,
+    V: VerifyCodeManager + Clone,
+    H: Hasher + Clone,
+    C: Cacher<ID> + Clone,
     ID: Default + Clone + Serialize + for<'de> Deserialize<'de> + Display,
 {
-    let services::RegisterUserResponse { id, secret } = services::register_user(
-        repository,
-        secret_generator,
-        verify_code_manager,
-        hasher,
-        cacher,
-        services::RegisterUserRequest {
+    let service::RegisterUserResponse { id, secret } = service
+        .lock()
+        .await
+        .register_user(service::RegisterUserRequest {
             phone: req.phone,
             email: req.email,
             password: req.password,
             verify_code: req.verify_code,
-            app_id: req.app_id,
-            app_secret: req.app_secret,
-        },
-    )
-    .await?;
+        })
+        .await?;
     Ok(Json(RegisterUserResponse { id, secret }))
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct LoginRequest<ID> {
+pub struct LoginRequest {
     phone: Option<String>,
     email: Option<String>,
     password: String,
-    app_id: ID,
-    app_secret: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -204,79 +113,74 @@ pub struct LoginResponse<ID> {
     secret: String,
 }
 
-pub async fn login<R, S, H, C, ID>(
-    repository: R,
-    secret_generator: S,
-    hasher: H,
-    cacher: C,
+pub async fn login<R, S, H, C, V, ID>(
+    service: Data<Mutex<Service<R, C, H, S, V, ID>>>,
     Json(LoginRequest {
         phone,
         email,
         password,
-        app_id,
-        app_secret,
-    }): Json<LoginRequest<ID>>,
-) -> Result<Json<LoginResponse<ID>>, Error>
+    }): Json<LoginRequest>,
+) -> Result<Json<LoginResponse<ID>>, Box<dyn StdErr>>
 where
-    R: Repository<ID>,
-    S: SecretGenerator,
-    H: Hasher,
-    C: Cacher<ID>,
+    R: Repository<ID> + Clone,
+    S: SecretGenerator + Clone,
+    H: Hasher + Clone,
+    C: Cacher<ID> + Clone,
+    V: VerifyCodeManager + Clone,
     ID: Default + Clone + Serialize + for<'de> Deserialize<'de> + Display,
 {
-    let services::LoginResponse { id, secret } = services::login(
-        repository,
-        secret_generator,
-        hasher,
-        cacher,
-        services::LoginRequest {
+    let service::LoginResponse { id, secret } = service
+        .lock()
+        .await
+        .login(service::LoginRequest {
             phone,
             email,
             password,
-            app_id,
-            app_secret,
-        },
-    )
-    .await?;
+        })
+        .await?;
     Ok(Json(LoginResponse { id, secret }))
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct VerifySecretRequest<ID> {
-    id: ID,
-    secret: String,
-    app_id: ID,
-    app_secret: String,
-}
+pub struct UIDHeader(pub String);
+pub struct SecretHeader(pub String);
 
-pub async fn verify_secret<R, H, C, ID>(
-    repository: R,
-    hasher: H,
-    cacher: C,
-    Json(VerifySecretRequest {
-        id,
-        secret,
-        app_id,
-        app_secret,
-    }): Json<VerifySecretRequest<ID>>,
-) -> Result<HttpResponse, Error>
+pub async fn verify_secret<R, H, C, S, V, ID, FE>(
+    req: HttpRequest,
+    uid_header: Data<UIDHeader>,
+    secret_header: Data<SecretHeader>,
+    service: Data<Mutex<Service<R, C, H, S, V, ID>>>,
+) -> Result<HttpResponse, Box<dyn StdErr>>
 where
-    R: Repository<ID>,
-    H: Hasher,
-    C: Cacher<ID>,
-    ID: Default + Clone + Serialize + for<'de> Deserialize<'de> + Display,
+    R: Repository<ID> + Clone,
+    H: Hasher + Clone,
+    C: Cacher<ID> + Clone,
+    S: SecretGenerator + Clone,
+    V: VerifyCodeManager + Clone,
+    ID: Default + Clone + Serialize + for<'de> Deserialize<'de> + Display + FromStr<Err = FE>,
+    FE: Debug + Display,
 {
-    services::verify_secret(
-        repository,
-        hasher,
-        cacher,
-        services::VerifySecretRequest {
-            id,
-            secret,
-            app_id,
-            app_secret,
-        },
-    )
-    .await?;
+    let id = req
+        .headers()
+        .get(&uid_header.0)
+        .ok_or(Box::new(Error::ServiceError(
+            "uid header not found".to_string(),
+        )))?
+        .to_str()?
+        .parse::<ID>()
+        .map_err(|e| Box::new(Error::ServiceError(e.to_string())))?;
+    let secret = req
+        .headers()
+        .get(&secret_header.0)
+        .ok_or(Box::new(Error::ServiceError(
+            "token header not found".to_string(),
+        )))?
+        .to_str()?
+        .parse::<String>()
+        .map_err(|e| Box::new(Error::ServiceError(e.to_string())))?;
+    service
+        .lock()
+        .await
+        .verify_secret(service::VerifySecretRequest { id, secret })
+        .await?;
     Ok(HttpResponse::Ok().finish())
 }

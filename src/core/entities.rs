@@ -38,17 +38,13 @@ pub struct User<ID> {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct CreateUser<ID>
-where
-    ID: Default,
-{
+pub struct CreateUser {
     pub phone: Option<String>,
     pub email: Option<String>,
     pub password_salt: Option<String>,
     pub password: Option<String>,
     pub secret: String,
     pub secret_salt: String,
-    pub app_id: ID,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -59,7 +55,6 @@ where
     pub id_eq: Option<ID>,
     pub phone_eq: Option<String>,
     pub email_eq: Option<String>,
-    pub app_id_eq: Option<ID>,
 }
 
 #[derive(Debug, Clone, Default)]
