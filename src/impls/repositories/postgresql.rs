@@ -22,16 +22,6 @@ impl PostgresqlRepository {
 }
 
 #[derive(Debug, FromRow)]
-pub struct App<String> {
-    pub id: String,
-    pub name: String,
-    pub secret: String,
-    pub secret_salt: String,
-    pub created_at: DateTime<Local>,
-    pub updated_at: DateTime<Local>,
-}
-
-#[derive(Debug, FromRow)]
 pub struct User<ID>
 where
     ID: Unpin,
@@ -43,7 +33,6 @@ where
     pub password: Option<String>,
     pub secret: String,
     pub secret_salt: String,
-    pub app_id: ID,
     pub created_at: DateTime<Local>,
     pub updated_at: DateTime<Local>,
 }
@@ -84,7 +73,6 @@ where
                 password: user.password,
                 secret: user.secret,
                 secret_salt: user.secret_salt,
-                app_id: user.app_id,
                 created_at: user.created_at,
                 updated_at: user.updated_at,
             }));
@@ -100,8 +88,7 @@ where
             password_salt, 
             password, 
             secret, 
-            secret_salt, 
-            ) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+            secret_salt) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
         )
         .bind(user.phone)
         .bind(user.email)

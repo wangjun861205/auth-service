@@ -60,13 +60,11 @@ where
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct RegisterUserRequest<ID> {
+pub struct RegisterUserRequest {
     phone: Option<String>,
     email: Option<String>,
     password: String,
     verify_code: String,
-    app_id: ID,
-    app_secret: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -77,7 +75,7 @@ pub struct RegisterUserResponse<ID> {
 
 pub async fn register_user<R, S, V, H, C, ID>(
     service: Data<Mutex<Service<R, C, H, S, V, ID>>>,
-    Json(req): Json<RegisterUserRequest<ID>>,
+    Json(req): Json<RegisterUserRequest>,
 ) -> Result<Json<RegisterUserResponse<ID>>, Box<dyn StdErr>>
 where
     R: Repository<ID> + Clone,

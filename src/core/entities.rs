@@ -1,28 +1,4 @@
 use chrono::{DateTime, Local};
-pub struct App<ID> {
-    pub id: ID,
-    pub name: String,
-    pub secret: String,
-    pub secret_salt: String,
-    pub created_at: DateTime<Local>,
-    pub updated_at: DateTime<Local>,
-}
-
-pub struct CreateApp {
-    pub name: String,
-    pub secret: String,
-    pub secret_salt: String,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct QueryApp<ID>
-where
-    ID: Default,
-{
-    pub id_eq: Option<ID>,
-    pub name_like: Option<String>,
-    pub name_like_any: Option<Vec<String>>,
-}
 
 pub struct User<ID> {
     pub id: ID,
@@ -32,7 +8,6 @@ pub struct User<ID> {
     pub password: Option<String>,
     pub secret: String,
     pub secret_salt: String,
-    pub app_id: ID,
     pub created_at: DateTime<Local>,
     pub updated_at: DateTime<Local>,
 }

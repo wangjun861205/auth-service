@@ -7,8 +7,8 @@ pub mod impls;
 use core::service::Service;
 use std::convert::Infallible;
 use std::env;
-use std::sync::Mutex;
 use std::{error::Error as StdErr, fmt::Display};
+use tokio::sync::Mutex;
 
 use crate::{
     handlers::{SecretHeader, UIDHeader},
@@ -96,16 +96,16 @@ async fn main() {
                 env::var("SECRET_HEADER").unwrap_or("X-SECRET".to_owned()),
             )))
             .service(
-                scope("/api/v1/users")
+                scope("")
                     .route(
-                        "",
+                        "users",
                         post().to(register_user::<
                             PostgresqlRepository,
                             RandomSecretGenerator,
                             FakeVerifyCodeManager,
                             ShaHasher,
-                            RedisCacher<String>,
-                            String,
+                            RedisCacher<i32>,
+                            i32,
                         >),
                     )
                     .route(
@@ -114,9 +114,9 @@ async fn main() {
                             PostgresqlRepository,
                             RandomSecretGenerator,
                             ShaHasher,
-                            RedisCacher<String>,
+                            RedisCacher<i32>,
                             FakeVerifyCodeManager,
-                            String,
+                            i32,
                         >),
                     )
                     .route(
@@ -124,22 +124,22 @@ async fn main() {
                         put().to(verify_secret::<
                             PostgresqlRepository,
                             ShaHasher,
-                            RedisCacher<String>,
+                            RedisCacher<i32>,
                             RandomSecretGenerator,
                             FakeVerifyCodeManager,
-                            String,
-                            Infallible,
+                            i32,
+                            _,
                         >),
                     )
                     .route(
                         "send_verify_code",
                         put().to(send_verify_code::<
                             PostgresqlRepository,
-                            RedisCacher<String>,
+                            RedisCacher<i32>,
                             ShaHasher,
                             RandomSecretGenerator,
                             FakeVerifyCodeManager,
-                            String,
+                            i32,
                         >),
                     ),
             )

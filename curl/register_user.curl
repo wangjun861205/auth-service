@@ -1,3 +1,3 @@
-url=http://localhost:8000/api/v1/users
+url=http://localhost:8000/users
 header="Content-Type: application/json"
 data=@register_user.json
