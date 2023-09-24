@@ -4,7 +4,6 @@ pub mod core;
 pub mod handlers;
 pub mod impls;
 
-use std::env;
 use tokio::sync::Mutex;
 
 use crate::{
@@ -25,22 +24,22 @@ use nb_from_env::{FromEnv, FromEnvDerive};
 use sqlx::PgPool;
 
 #[derive(FromEnvDerive)]
-struct ServerConfig {
+pub struct ServerConfig {
     database_url: String,
     redis_url: String,
     server_address: String,
-    log_level: Option<String>,
-    log_format: Option<String>,
-    uid_header: Option<String>,
-    secret_header: Option<String>,
+    #[env_default("info")]
+    log_level: String,
+    #[env_default("%{User-Agent}i\n%s\n%a\n%r\n%T")]
+    log_format: String,
+    #[env_default("X-UID")]
+    uid_header: String,
+    #[env_default("X-SECRET")]
+    secret_header: String,
 }
 
-pub async fn start_default_server() {
-    dotenv::dotenv().ok();
-    let config = ServerConfig::from_env();
-    env_logger::init_from_env(
-        env_logger::Env::new().default_filter_or(config.log_level.unwrap_or("info".to_owned())),
-    );
+pub async fn start_default_server(config: ServerConfig) {
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or(config.log_level));
     let pg_pool = PgPool::connect(&config.database_url)
         .await
         .expect("Failed to connect to Postgres");
@@ -55,22 +54,10 @@ pub async fn start_default_server() {
     );
     HttpServer::new(move || {
         App::new()
-            .wrap(Logger::new(
-                &config
-                    .log_format
-                    .clone()
-                    .unwrap_or("%{User-Agent}i\n%s\n%a\n%r\n%T".to_owned()),
-            ))
+            .wrap(Logger::new(&config.log_format))
             .app_data(Data::new(Mutex::new(service.clone())))
-            .app_data(Data::new(UIDHeader(
-                config.uid_header.clone().unwrap_or("X-UID".to_owned()),
-            )))
-            .app_data(Data::new(SecretHeader(
-                config
-                    .secret_header
-                    .clone()
-                    .unwrap_or("X-SECRET".to_owned()),
-            )))
+            .app_data(Data::new(UIDHeader(config.uid_header.clone())))
+            .app_data(Data::new(SecretHeader(config.secret_header.clone())))
             .service(
                 scope("")
                     .route(
