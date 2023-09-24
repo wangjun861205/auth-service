@@ -5,7 +5,6 @@ use crate::core::{
     repository::Repository,
     secret_generator::SecretGenerator,
     service::{self, Service},
-    verify_code_manager::VerifyCodeManager,
 };
 use actix_web::{
     web::{Data, Json},
@@ -18,6 +17,8 @@ use std::{
     str::FromStr,
 };
 use tokio::sync::Mutex;
+
+pub type SyncService<R, C, H, S, ID> = Data<Mutex<Service<R, C, H, S, ID>>>;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ListResponse<T> {
@@ -36,29 +37,6 @@ pub struct SendVerifyCodeRequest {
     phone: Option<String>,
 }
 
-pub async fn send_verify_code<R, C, H, S, V, ID>(
-    service: Data<Mutex<Service<R, C, H, S, V, ID>>>,
-    Json(req): Json<SendVerifyCodeRequest>,
-) -> Result<HttpResponse, Box<dyn StdErr>>
-where
-    R: Repository<ID> + Clone,
-    C: Cacher<ID> + Clone,
-    H: Hasher + Clone,
-    S: SecretGenerator + Clone,
-    V: VerifyCodeManager + Clone,
-    ID: Default + Clone + Display,
-{
-    service
-        .lock()
-        .await
-        .send_verify_code(service::SendVerifyCodeRequest {
-            email: req.email,
-            phone: req.phone,
-        })
-        .await?;
-    Ok(HttpResponse::Ok().finish())
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RegisterUserRequest {
     phone: Option<String>,
@@ -73,14 +51,13 @@ pub struct RegisterUserResponse<ID> {
     secret: String,
 }
 
-pub async fn register_user<R, S, V, H, C, ID>(
-    service: Data<Mutex<Service<R, C, H, S, V, ID>>>,
+pub async fn register_user<R, S, H, C, ID>(
+    service: SyncService<R, C, H, S, ID>,
     Json(req): Json<RegisterUserRequest>,
 ) -> Result<Json<RegisterUserResponse<ID>>, Box<dyn StdErr>>
 where
     R: Repository<ID> + Clone,
     S: SecretGenerator + Clone,
-    V: VerifyCodeManager + Clone,
     H: Hasher + Clone,
     C: Cacher<ID> + Clone,
     ID: Default + Clone + Serialize + for<'de> Deserialize<'de> + Display,
@@ -111,8 +88,8 @@ pub struct LoginResponse<ID> {
     secret: String,
 }
 
-pub async fn login<R, S, H, C, V, ID>(
-    service: Data<Mutex<Service<R, C, H, S, V, ID>>>,
+pub async fn login<R, S, H, C, ID>(
+    service: SyncService<R, C, H, S, ID>,
     Json(LoginRequest {
         phone,
         email,
@@ -124,7 +101,6 @@ where
     S: SecretGenerator + Clone,
     H: Hasher + Clone,
     C: Cacher<ID> + Clone,
-    V: VerifyCodeManager + Clone,
     ID: Default + Clone + Serialize + for<'de> Deserialize<'de> + Display,
 {
     let service::LoginResponse { id, secret } = service
@@ -142,18 +118,17 @@ where
 pub struct UIDHeader(pub String);
 pub struct SecretHeader(pub String);
 
-pub async fn verify_secret<R, H, C, S, V, ID, FE>(
+pub async fn verify_secret<R, H, C, S, ID, FE>(
     req: HttpRequest,
     uid_header: Data<UIDHeader>,
     secret_header: Data<SecretHeader>,
-    service: Data<Mutex<Service<R, C, H, S, V, ID>>>,
+    service: SyncService<R, C, H, S, ID>,
 ) -> Result<HttpResponse, Box<dyn StdErr>>
 where
     R: Repository<ID> + Clone,
     H: Hasher + Clone,
     C: Cacher<ID> + Clone,
     S: SecretGenerator + Clone,
-    V: VerifyCodeManager + Clone,
     ID: Default + Clone + Serialize + for<'de> Deserialize<'de> + Display + FromStr<Err = FE>,
     FE: Debug + Display,
 {

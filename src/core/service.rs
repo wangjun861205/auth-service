@@ -5,26 +5,23 @@ use crate::core::{
     hasher::Hasher,
     repository::Repository,
     secret_generator::SecretGenerator,
-    verify_code_manager::VerifyCodeManager,
 };
 
 use std::{error::Error as StdErr, fmt::Display, marker::PhantomData};
 
 #[derive(Debug, Clone)]
-pub struct Service<R, C, H, S, V, ID>
+pub struct Service<R, C, H, S, ID>
 where
     R: Repository<ID> + Clone,
     C: Cacher<ID> + Clone,
     H: Hasher + Clone,
     S: SecretGenerator + Clone,
-    V: VerifyCodeManager + Clone,
     ID: Default + Clone + Display,
 {
     pub repository: R,
     pub cacher: C,
     pub hasher: H,
     pub secret_generator: S,
-    pub verify_code_manager: V,
     _phantom: PhantomData<ID>,
 }
 
@@ -61,82 +58,33 @@ pub struct LoginResponse<ID> {
     pub secret: String,
 }
 
-impl<R, C, H, S, V, ID> Service<R, C, H, S, V, ID>
+impl<R, C, H, S, ID> Service<R, C, H, S, ID>
 where
     R: Repository<ID> + Clone,
     C: Cacher<ID> + Clone,
     H: Hasher + Clone,
     S: SecretGenerator + Clone,
-    V: VerifyCodeManager + Clone,
     ID: Default + Clone + Display,
 {
-    pub fn new(
-        repository: R,
-        cacher: C,
-        hasher: H,
-        secret_generator: S,
-        verify_code_manager: V,
-    ) -> Self {
+    pub fn new(repository: R, cacher: C, hasher: H, secret_generator: S) -> Self {
         Self {
             repository,
             cacher,
             hasher,
             secret_generator,
-            verify_code_manager,
             _phantom: PhantomData,
         }
-    }
-
-    pub async fn send_verify_code(
-        &mut self,
-        req: SendVerifyCodeRequest,
-    ) -> Result<(), Box<dyn StdErr>>
-    where
-        V: VerifyCodeManager,
-    {
-        if req.phone.is_none() && req.email.is_none() {
-            return Err(
-                Box::new(Error::ServiceError("手机号与邮箱至少提供一个".to_owned()))
-                    as Box<dyn StdErr>,
-            );
-        }
-        if let Some(phone) = req.phone {
-            self.verify_code_manager.send_by_sms(phone).await?;
-        }
-        if let Some(email) = req.email {
-            self.verify_code_manager.send_by_email(email).await?;
-        }
-        Ok(())
     }
 
     pub async fn register_user(
         &mut self,
         req: RegisterUserRequest,
-    ) -> Result<RegisterUserResponse<ID>, Box<dyn StdErr>>
-    where
-        R: Repository<ID>,
-        S: SecretGenerator,
-        V: VerifyCodeManager,
-        H: Hasher,
-        C: Cacher<ID>,
-        ID: Default + Clone + Display,
-    {
+    ) -> Result<RegisterUserResponse<ID>, Box<dyn StdErr>> {
         if req.phone.is_none() && req.email.is_none() {
             return Err(Box::new(Error::ServiceError(
                 "手机号与邮箱至少提供一个".to_owned(),
             )));
         }
-        if let Some(phone) = &req.phone {
-            self.verify_code_manager
-                .verify_sms_code(phone, &req.verify_code)
-                .await?;
-        }
-        if let Some(email) = &req.email {
-            self.verify_code_manager
-                .verify_email_code(email, &req.verify_code)
-                .await?;
-        }
-
         let secret = self.secret_generator.generate_secret()?;
         let secret_salt = self.hasher.generate_salt()?;
         let hashed_secret = self.hasher.hash(&secret, &secret_salt)?;
@@ -168,13 +116,7 @@ where
     pub async fn verify_secret(
         &mut self,
         req: VerifySecretRequest<ID>,
-    ) -> Result<(), Box<dyn StdErr>>
-    where
-        R: Repository<ID>,
-        H: Hasher,
-        C: Cacher<ID>,
-        ID: Default + Clone + Display,
-    {
+    ) -> Result<(), Box<dyn StdErr>> {
         if let Some(SecretPair {
             hashed_secret,
             secret_salt,
@@ -214,14 +156,7 @@ where
         )))
     }
 
-    pub async fn login(&mut self, req: LoginRequest) -> Result<LoginResponse<ID>, Box<dyn StdErr>>
-    where
-        R: Repository<ID>,
-        S: SecretGenerator,
-        H: Hasher,
-        C: Cacher<ID>,
-        ID: Clone + Default + Display,
-    {
+    pub async fn login(&mut self, req: LoginRequest) -> Result<LoginResponse<ID>, Box<dyn StdErr>> {
         if req.phone.is_none() && req.email.is_none() {
             return Err(Box::new(Error::ServiceError(
                 "手机号与邮箱至少提供一个".to_owned(),

@@ -706,6 +706,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "from-env-derive"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be83688e01b98b8a0ae36c74ced47e01586f53ba0203f21d52afdf0b36b293be"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.29",
+]
+
+[[package]]
 name = "futures-channel"
 version = "0.3.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1149,6 +1160,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nb-from-env"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5eda8bd535a9ad9f699633491a8e033cedd260b12a2107389d6f42e653d01287"
+dependencies = [
+ "from-env-derive",
+]
+
+[[package]]
 name = "nbauth"
 version = "0.1.0"
 dependencies = [
@@ -1158,6 +1178,7 @@ dependencies = [
  "dotenv",
  "env_logger",
  "hex",
+ "nb-from-env",
  "rand",
  "redis",
  "redis_rs",

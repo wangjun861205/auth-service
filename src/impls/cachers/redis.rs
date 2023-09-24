@@ -1,4 +1,4 @@
-use redis::{aio::Connection, AsyncCommands, Client, ToRedisArgs};
+use redis::{AsyncCommands, Client, ToRedisArgs};
 use std::error::Error as StdErr;
 use std::marker::PhantomData;
 
