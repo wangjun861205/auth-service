@@ -4,8 +4,6 @@ pub mod core;
 pub mod handlers;
 pub mod impls;
 
-use tokio::sync::Mutex;
-
 use crate::{
     core::service::Service,
     handlers::{login, register_user, verify_secret, SecretHeader, UIDHeader},
@@ -22,6 +20,7 @@ use actix_web::{
 };
 use nb_from_env::{FromEnv, FromEnvDerive};
 use sqlx::PgPool;
+use tokio::sync::Mutex;
 
 #[derive(FromEnvDerive)]
 pub struct ServerConfig {
