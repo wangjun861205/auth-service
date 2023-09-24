@@ -293,6 +293,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "auth-service"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "anyhow",
+ "chrono",
+ "dotenv",
+ "env_logger",
+ "hex",
+ "nb-from-env",
+ "rand",
+ "redis",
+ "redis_rs",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -707,9 +729,9 @@ dependencies = [
 
 [[package]]
 name = "from-env-derive"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be83688e01b98b8a0ae36c74ced47e01586f53ba0203f21d52afdf0b36b293be"
+checksum = "6d9885e748376288cec274a1a3f38f22778b045dc2aa404c7d30fad235c64a0c"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1161,33 +1183,11 @@ dependencies = [
 
 [[package]]
 name = "nb-from-env"
-version = "0.1.1"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5eda8bd535a9ad9f699633491a8e033cedd260b12a2107389d6f42e653d01287"
+checksum = "db3874abd8ce9864d1ee1100ebe358beba9aa96661ae483db00878b5c470f556"
 dependencies = [
  "from-env-derive",
-]
-
-[[package]]
-name = "nbauth"
-version = "0.1.0"
-dependencies = [
- "actix-web",
- "anyhow",
- "chrono",
- "dotenv",
- "env_logger",
- "hex",
- "nb-from-env",
- "rand",
- "redis",
- "redis_rs",
- "serde",
- "serde_json",
- "sha2",
- "sqlx",
- "tokio",
- "uuid",
 ]
 
 [[package]]

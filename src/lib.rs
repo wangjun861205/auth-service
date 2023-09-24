@@ -36,7 +36,7 @@ struct ServerConfig {
 }
 
 #[actix_web::main]
-async fn start_default_server() {
+pub async fn start_default_server() {
     dotenv::dotenv().ok();
     let config = ServerConfig::from_env();
     env_logger::init_from_env(
