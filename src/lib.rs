@@ -24,17 +24,17 @@ use tokio::sync::Mutex;
 
 #[derive(FromEnvDerive)]
 pub struct ServerConfig {
-    database_url: String,
-    redis_url: String,
-    server_address: String,
+    pub database_url: String,
+    pub redis_url: String,
+    pub server_address: String,
     #[env_default("info")]
-    log_level: String,
+    pub log_level: String,
     #[env_default("%{User-Agent}i\n%s\n%a\n%r\n%T")]
-    log_format: String,
+    pub log_format: String,
     #[env_default("X-UID")]
-    uid_header: String,
+    pub uid_header: String,
     #[env_default("X-SECRET")]
-    secret_header: String,
+    pub secret_header: String,
 }
 
 pub async fn start_default_server(config: ServerConfig) {
