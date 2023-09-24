@@ -35,7 +35,6 @@ struct ServerConfig {
     secret_header: Option<String>,
 }
 
-#[actix_web::main]
 pub async fn start_default_server() {
     dotenv::dotenv().ok();
     let config = ServerConfig::from_env();
