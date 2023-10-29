@@ -3,8 +3,8 @@ use crate::core::{
     error::Error,
     hasher::Hasher,
     repository::Repository,
-    secret_generator::SecretGenerator,
     service::{self, Service},
+    token_manager::SecretGenerator,
 };
 use actix_web::{
     web::{Data, Json},

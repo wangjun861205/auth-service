@@ -1,4 +1,4 @@
-use crate::core::secret_generator::SecretGenerator;
+use crate::core::token_manager::SecretGenerator;
 use std::error::Error as StdErr;
 use uuid::Uuid;
 
