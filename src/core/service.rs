@@ -30,20 +30,22 @@ where
         }
     }
 
-    pub async fn register_user(&self, phone: &str, password: &str) -> Result<String, Error> {
+    pub async fn signup(&self, phone: &str, password: &str) -> Result<String, Error> {
         if self.repository.exists_user(phone).await? {
             return Err(Error::msg("手机号已被注册"));
         }
 
         let password_salt = self.hasher.generate_salt()?;
         let hashed_password = self.hasher.hash(password, &password_salt)?;
-        self.repository
+        let id = self
+            .repository
             .insert_user(&CreateUser {
                 phone: phone.to_owned(),
                 password: hashed_password,
                 password_salt,
             })
-            .await
+            .await?;
+        self.token_manager.generate_token(&id).await
     }
 
     pub async fn generate_token(&self, id: &str) -> Result<String, Error> {
