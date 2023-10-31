@@ -8,6 +8,8 @@ use crate::core::{
     entities::{CreateUser, User},
     repository::Repository,
 };
+
+#[derive(Debug, Clone)]
 pub struct MongodbRepository {
     db: Database,
 }
