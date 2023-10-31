@@ -16,26 +16,6 @@ where
     pub token_manager: T,
 }
 
-pub struct RegisterUserRequest {
-    pub phone: String,
-    pub password: String,
-    pub verify_code: String,
-}
-
-pub struct RegisterUserResponse {
-    pub id: String,
-    pub token: String,
-}
-
-pub struct LoginRequest {
-    pub phone: Option<String>,
-    pub password: String,
-}
-
-pub struct LoginResponse {
-    pub token: String,
-}
-
 impl<R, H, T> Service<R, H, T>
 where
     R: Repository + Clone,
@@ -50,7 +30,7 @@ where
         }
     }
 
-    pub async fn register_user(&mut self, phone: &str, password: &str) -> Result<String, Error> {
+    pub async fn register_user(&self, phone: &str, password: &str) -> Result<String, Error> {
         if self.repository.exists_user(phone).await? {
             return Err(Error::msg("手机号已被注册"));
         }
@@ -70,15 +50,11 @@ where
         self.token_manager.generate_token(id).await
     }
 
-    pub async fn verify_token(&mut self, token: &str) -> Result<String, Error> {
+    pub async fn verify_token(&self, token: &str) -> Result<String, Error> {
         self.token_manager.verify_token(token).await
     }
 
-    pub async fn login_by_password(
-        &mut self,
-        phone: &str,
-        password: &str,
-    ) -> Result<String, Error> {
+    pub async fn login_by_password(&self, phone: &str, password: &str) -> Result<String, Error> {
         if let Some(user) = self.repository.fetch_user(phone).await? {
             if user.password.is_none() {
                 return Err(Error::msg("不支持的登录方式"));
