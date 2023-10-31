@@ -1,6 +1,8 @@
 use anyhow::Error;
+use chrono::Utc;
 use mongodb::{
     bson::{doc, Document},
+    options::FindOneOptions,
     Database,
 };
 
@@ -33,15 +35,36 @@ impl Repository for MongodbRepository {
         Ok(self
             .db
             .collection::<User>("users")
-            .find_one(doc! {"phone": phone}, None)
+            .find_one(
+                doc! {"phone": phone},
+                FindOneOptions::builder()
+                    .projection(doc! {
+                        "id": "$id",
+                        "phone": 1,
+                        "password": 1,
+                        "password_salk": 1,
+                        "created_ad": 1,
+                        "updated_at": 1,
+                    })
+                    .build(),
+            )
             .await?)
     }
 
     async fn insert_user(&self, user: &CreateUser) -> Result<String, Error> {
         let res = self
             .db
-            .collection::<CreateUser>("users")
-            .insert_one(user, None)
+            .collection::<Document>("users")
+            .insert_one(
+                doc! {
+                    "phone": &user.phone,
+                    "password": &user.password,
+                    "password_salt": &user.password_salt,
+                    "created_at": Utc::now().to_rfc3339(),
+                    "updated_at": Utc::now().to_rfc3339(),
+                },
+                None,
+            )
             .await?;
         Ok(res
             .inserted_id
