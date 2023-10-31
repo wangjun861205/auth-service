@@ -39,11 +39,11 @@ impl Repository for MongodbRepository {
                 doc! {"phone": phone},
                 FindOneOptions::builder()
                     .projection(doc! {
-                        "id": "$id",
+                        "id": { "$toString": "$_id" },
                         "phone": 1,
                         "password": 1,
-                        "password_salk": 1,
-                        "created_ad": 1,
+                        "password_salt": 1,
+                        "created_at": 1,
                         "updated_at": 1,
                     })
                     .build(),

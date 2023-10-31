@@ -58,10 +58,7 @@ where
 
     pub async fn login_by_password(&self, phone: &str, password: &str) -> Result<String, Error> {
         if let Some(user) = self.repository.fetch_user(phone).await? {
-            if user.password.is_none() {
-                return Err(Error::msg("不支持的登录方式"));
-            }
-            if self.hasher.hash(password, user.password_salt.unwrap())? != user.password.unwrap() {
+            if self.hasher.hash(password, user.password_salt)? != user.password {
                 return Err(Error::msg("用户不存在或凭证不正确"));
             }
             return self.token_manager.generate_token(&user.id).await;
