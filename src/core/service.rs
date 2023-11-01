@@ -65,4 +65,8 @@ where
         }
         Err(Error::msg("用户不存在或凭证不正确"))
     }
+
+    pub async fn exists_user(&self, phone: &str) -> Result<bool, Error> {
+        self.repository.exists_user(phone).await
+    }
 }
