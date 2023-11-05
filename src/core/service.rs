@@ -48,8 +48,13 @@ where
         self.token_manager.generate_token(&id).await
     }
 
-    pub async fn generate_token(&self, id: &str) -> Result<String, Error> {
-        self.token_manager.generate_token(id).await
+    pub async fn generate_token(&self, phone: &str) -> Result<String, Error> {
+        let user = self
+            .repository
+            .fetch_user(phone)
+            .await?
+            .ok_or(Error::msg("用户不存在"))?;
+        self.token_manager.generate_token(&user.id).await
     }
 
     pub async fn verify_token(&self, token: &str) -> Result<String, Error> {
