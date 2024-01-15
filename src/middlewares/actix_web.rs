@@ -24,6 +24,7 @@ where
     T: TokenManager,
 {
     auth_header_name: &'static str,
+    uid_header_name: &'static str,
     service: Rc<S>,
     token_manager: T,
 }
@@ -52,13 +53,14 @@ where
                 let token = token.to_string();
                 let token_manager = self.token_manager.clone();
                 let service = self.service.clone();
+                let uid_header_name = self.uid_header_name;
                 return Box::pin(async move {
                     let uid = token_manager
                         .verify_token(token)
                         .await
                         .map_err(ErrorForbidden)?;
                     req.headers_mut().insert(
-                        HeaderName::from_str("User-ID").unwrap(),
+                        HeaderName::from_str(uid_header_name).unwrap(),
                         HeaderValue::from_str(&uid).unwrap(),
                     );
                     service.call(req).await.map_err(ErrorInternalServerError)
@@ -75,6 +77,7 @@ where
     T: TokenManager,
 {
     auth_header_name: &'static str,
+    uid_header_name: &'static str,
     token_manager: T,
 }
 
@@ -82,9 +85,14 @@ impl<T> AuthTokenMiddleware<T>
 where
     T: TokenManager,
 {
-    pub fn new(auth_header_name: &'static str, token_manager: T) -> Self {
+    pub fn new(
+        auth_header_name: &'static str,
+        uid_header_name: &'static str,
+        token_manager: T,
+    ) -> Self {
         Self {
             auth_header_name,
+            uid_header_name,
             token_manager,
         }
     }
@@ -104,9 +112,11 @@ where
     fn new_transform(&self, service: S) -> Self::Future {
         let token_manager = self.token_manager.clone();
         let auth_header_name = self.auth_header_name;
+        let uid_header_name = self.uid_header_name;
         Box::pin(async move {
             Ok(AuthTokenService {
                 auth_header_name,
+                uid_header_name,
                 service: Rc::new(service),
                 token_manager,
             })
