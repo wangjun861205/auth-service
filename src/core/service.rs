@@ -47,24 +47,57 @@ where
     }
 
     pub async fn generate_token(&self, identifier: &str) -> Result<String, Error> {
-        let user = self
-            .repository
-            .fetch_user(identifier)
-            .await?
-            .ok_or(Error::UserNotExists)?;
-        self.token_manager.generate_token(&user.id).await
+        let key = self
+            .token_manager
+            .generate_key()
+            .await
+            .map_err(|e| Error::TokenManagerError(Box::new(e)))?;
+        let token = self
+            .token_manager
+            .sign_key(key)
+            .await
+            .map_err(|e| Error::TokenManagerError(Box::new(e)))?;
+        self.repository
+            .set_token(identifier, &token)
+            .await
+            .map_err(|e| Error::RepositoryError(Box::new(e)))?;
+        Ok(token)
     }
 
     pub async fn verify_token(&self, token: &str) -> Result<String, Error> {
-        self.token_manager.verify_token(token).await
+        let key = self
+            .token_manager
+            .verify_token(token)
+            .await
+            .map_err(|e| Error::TokenManagerError(Box::new(e)))?;
+        let id = self
+            .repository
+            .get_id_by_key(&key)
+            .await
+            .map_err(|e| Error::RepositoryError(Box::new(e)))?
+            .ok_or(Error::InvalidToken)?;
+        Ok(id)
     }
 
     pub async fn login(&self, identifier: &str, password: &str) -> Result<String, Error> {
-        if let Some(user) = self.repository.fetch_user(identifier).await? {
-            if self.hasher.hash(password, user.password_salt)? != user.password {
-                return Err(Error::InvalidCredential);
+        if let Some(salt) = self
+            .repository
+            .get_password_salt(identifier)
+            .await
+            .map_err(|e| Error::RepositoryError(Box::new(e)))?
+        {
+            let hashed_password = self
+                .hasher
+                .hash(password, &salt)
+                .map_err(|e| Error::HasherError(Box::new(e)))?;
+            if let Some(id) = self
+                .repository
+                .get_id_by_credential(identifier, &hashed_password)
+                .await
+                .map_err(|e| Error::RepositoryError(Box::new(e)))?
+            {
+                return self.generate_token(&id).await;
             }
-            return self.token_manager.generate_token(&user.id).await;
         }
         Err(Error::InvalidCredential)
     }

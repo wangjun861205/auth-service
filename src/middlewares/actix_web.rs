@@ -1,4 +1,7 @@
-use crate::core::token_manager::TokenManager;
+use crate::core::{
+    hasher::Hasher, repository::Repository, service::Service as AuthService,
+    token_manager::TokenManager,
+};
 use std::{
     fmt::{Debug, Display},
     future::Future,
@@ -18,22 +21,26 @@ use actix_web::{
 type AuthTokenFuture<S: Service<ServiceRequest>> =
     Pin<Box<dyn Future<Output = Result<S::Response, Error>>>>;
 
-pub struct AuthTokenService<S, T>
+pub struct AuthTokenService<S, R, H, T>
 where
     S: Service<ServiceRequest>,
-    T: TokenManager,
+    R: Repository + Clone + 'static,
+    H: Hasher + Clone + 'static,
+    T: TokenManager + Clone + 'static,
 {
     auth_header_name: &'static str,
     uid_header_name: &'static str,
     service: Rc<S>,
-    token_manager: T,
+    auth_service: AuthService<R, H, T>,
 }
 
-impl<S, T> Service<ServiceRequest> for AuthTokenService<S, T>
+impl<S, R, H, T> Service<ServiceRequest> for AuthTokenService<S, R, H, T>
 where
     S: Service<ServiceRequest> + 'static,
-    T: TokenManager + Clone + 'static,
     S::Error: Display + Debug,
+    R: Repository + Clone + 'static,
+    H: Hasher + Clone + 'static,
+    T: TokenManager + Clone + 'static,
 {
     type Response = S::Response;
     type Error = Error;
@@ -51,12 +58,12 @@ where
             let header_value = header_value.clone();
             if let Ok(token) = header_value.to_str() {
                 let token = token.to_string();
-                let token_manager = self.token_manager.clone();
+                let auth_service = self.auth_service.clone();
                 let service = self.service.clone();
                 let uid_header_name = self.uid_header_name;
                 return Box::pin(async move {
-                    let uid = token_manager
-                        .verify_token(token)
+                    let uid = auth_service
+                        .verify_token(&token)
                         .await
                         .map_err(ErrorForbidden)?;
                     req.headers_mut().insert(
@@ -72,45 +79,51 @@ where
     }
 }
 
-pub struct AuthTokenMiddleware<T>
+pub struct AuthTokenMiddleware<R, H, T>
 where
-    T: TokenManager,
+    R: Repository + Clone + 'static,
+    H: Hasher + Clone + 'static,
+    T: TokenManager + Clone + 'static,
 {
     auth_header_name: &'static str,
     uid_header_name: &'static str,
-    token_manager: T,
+    auth_service: AuthService<R, H, T>,
 }
 
-impl<T> AuthTokenMiddleware<T>
+impl<R, H, T> AuthTokenMiddleware<R, H, T>
 where
-    T: TokenManager,
+    R: Repository + Clone + 'static,
+    H: Hasher + Clone + 'static,
+    T: TokenManager + Clone + 'static,
 {
     pub fn new(
         auth_header_name: &'static str,
         uid_header_name: &'static str,
-        token_manager: T,
+        auth_service: AuthService<R, H, T>,
     ) -> Self {
         Self {
             auth_header_name,
             uid_header_name,
-            token_manager,
+            auth_service,
         }
     }
 }
 
-impl<S, T> Transform<S, ServiceRequest> for AuthTokenMiddleware<T>
+impl<S, R, H, T> Transform<S, ServiceRequest> for AuthTokenMiddleware<R, H, T>
 where
+    R: Repository + Clone + 'static,
+    H: Hasher + Clone + 'static,
     T: TokenManager + Clone + 'static,
     S: Service<ServiceRequest> + 'static,
     S::Error: Display + Debug,
 {
-    type Transform = AuthTokenService<S, T>;
+    type Transform = AuthTokenService<S, R, H, T>;
     type Response = S::Response;
     type InitError = ();
     type Error = Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Transform, Self::InitError>>>>;
     fn new_transform(&self, service: S) -> Self::Future {
-        let token_manager = self.token_manager.clone();
+        let auth_service = self.auth_service.clone();
         let auth_header_name = self.auth_header_name;
         let uid_header_name = self.uid_header_name;
         Box::pin(async move {
@@ -118,7 +131,7 @@ where
                 auth_header_name,
                 uid_header_name,
                 service: Rc::new(service),
-                token_manager,
+                auth_service,
             })
         })
     }

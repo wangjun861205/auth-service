@@ -32,26 +32,6 @@ impl Repository for MongodbRepository {
             .map_err(|e| Error::FailedToCheckExists(Box::new(e)))?
             == 1)
     }
-    async fn fetch_user(&self, phone: &str) -> Result<Option<User>, Error> {
-        Ok(self
-            .db
-            .collection::<User>("users")
-            .find_one(
-                doc! {"phone": phone},
-                FindOneOptions::builder()
-                    .projection(doc! {
-                        "id": { "$toString": "$_id" },
-                        "phone": 1,
-                        "password": 1,
-                        "password_salt": 1,
-                        "created_at": 1,
-                        "updated_at": 1,
-                    })
-                    .build(),
-            )
-            .await
-            .map_err(|e| Error::FailedToFetchUser(Box::new(e)))?)
-    }
 
     async fn insert_user(&self, user: &CreateUser) -> Result<String, Error> {
         let res = self
@@ -76,5 +56,25 @@ impl Repository for MongodbRepository {
                 "未找到object id".to_owned(),
             )))?
             .to_hex())
+    }
+
+    async fn get_password_salt(&self, identifier: &str) -> Result<Option<String>, Error> {
+        unimplemented!()
+    }
+
+    async fn get_id_by_credential(
+        &self,
+        identifier: &str,
+        password: &str,
+    ) -> Result<Option<String>, Error> {
+        unimplemented!()
+    }
+
+    async fn set_token(&self, identifier: &str, token: &str) -> Result<(), Error> {
+        unimplemented!()
+    }
+
+    async fn get_id_by_key(&self, token: &str) -> Result<Option<String>, Error> {
+        unimplemented!()
     }
 }

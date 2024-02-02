@@ -1,6 +1,7 @@
 use crate::core::{error::Error, token_manager::TokenManager};
 use jwt::{SignWithKey, SigningAlgorithm, VerifyWithKey, VerifyingAlgorithm};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
@@ -28,7 +29,10 @@ impl<T> TokenManager for JWTTokenManager<T>
 where
     T: SigningAlgorithm + VerifyingAlgorithm,
 {
-    async fn generate_token(&self, id: impl Into<String>) -> Result<String, Error> {
+    async fn generate_key(&self) -> Result<impl Into<String>, Error> {
+        Ok(Uuid::new_v4().to_string())
+    }
+    async fn sign_key(&self, id: impl Into<String>) -> Result<String, Error> {
         let claims = Claims { id: id.into() };
         let token = claims
             .sign_with_key(&self.key)

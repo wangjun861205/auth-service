@@ -16,9 +16,6 @@ impl Repository for MemoryRepository {
         Ok(self.map.read().await.contains_key(phone))
     }
 
-    async fn fetch_user(&self, phone: &str) -> Result<Option<User>, Error> {
-        Ok(self.map.read().await.get(phone).cloned())
-    }
     async fn insert_user(&self, user: &CreateUser) -> Result<String, Error> {
         let mut map = self.map.write().await;
         let id = uuid::Uuid::new_v4().to_string();
@@ -32,5 +29,25 @@ impl Repository for MemoryRepository {
         };
         map.insert(user.phone.clone(), user);
         Ok(id)
+    }
+
+    async fn get_password_salt(&self, identifier: &str) -> Result<Option<String>, Error> {
+        unimplemented!()
+    }
+
+    async fn get_id_by_credential(
+        &self,
+        identifier: &str,
+        password: &str,
+    ) -> Result<Option<String>, Error> {
+        unimplemented!()
+    }
+
+    async fn set_token(&self, identifier: &str, token: &str) -> Result<(), Error> {
+        unimplemented!()
+    }
+
+    async fn get_id_by_key(&self, token: &str) -> Result<Option<String>, Error> {
+        unimplemented!()
     }
 }

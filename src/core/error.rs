@@ -14,6 +14,7 @@ pub enum Error {
     IdentifierAlreadyExists,
     UserNotExists,
     InvalidCredential,
+    InvalidToken,
 }
 
 impl Display for Error {
@@ -31,6 +32,7 @@ impl Display for Error {
             Error::IdentifierAlreadyExists => write!(f, "Identifier already exists"),
             Error::UserNotExists => write!(f, "User not exists"),
             Error::InvalidCredential => write!(f, "Invalid credential"),
+            Error::InvalidToken => write!(f, "Invalid token"),
         }
     }
 }
