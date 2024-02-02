@@ -1,7 +1,6 @@
-use anyhow::Error;
-
 use crate::core::{
-    entities::CreateUser, hasher::Hasher, repository::Repository, token_manager::TokenManager,
+    entities::CreateUser, error::Error, hasher::Hasher, repository::Repository,
+    token_manager::TokenManager,
 };
 
 #[derive(Debug, Clone)]
@@ -30,22 +29,21 @@ where
         }
     }
 
-    pub async fn signup(&self, phone: &str, password: &str) -> Result<String, Error> {
-        if self.repository.exists_user(phone).await? {
-            return Err(Error::msg("手机号已被注册"));
+    pub async fn signup(&self, identifier: &str, password: &str) -> Result<String, Error> {
+        if self.repository.exists_user(identifier).await? {
+            return Err(Error::IdentifierAlreadyExists);
         }
-
         let password_salt = self.hasher.generate_salt()?;
         let hashed_password = self.hasher.hash(password, &password_salt)?;
         let id = self
             .repository
             .insert_user(&CreateUser {
-                phone: phone.to_owned(),
+                identifier: identifier.to_owned(),
                 password: hashed_password,
                 password_salt,
             })
             .await?;
-        self.token_manager.generate_token(&id).await
+        Ok(id)
     }
 
     pub async fn generate_token(&self, phone: &str) -> Result<String, Error> {
@@ -53,7 +51,7 @@ where
             .repository
             .fetch_user(phone)
             .await?
-            .ok_or(Error::msg("用户不存在"))?;
+            .ok_or(Error::UserNotExists)?;
         self.token_manager.generate_token(&user.id).await
     }
 
@@ -64,11 +62,11 @@ where
     pub async fn login_by_password(&self, phone: &str, password: &str) -> Result<String, Error> {
         if let Some(user) = self.repository.fetch_user(phone).await? {
             if self.hasher.hash(password, user.password_salt)? != user.password {
-                return Err(Error::msg("用户不存在或凭证不正确"));
+                return Err(Error::InvalidCredential);
             }
             return self.token_manager.generate_token(&user.id).await;
         }
-        Err(Error::msg("用户不存在或凭证不正确"))
+        Err(Error::InvalidCredential)
     }
 
     pub async fn exists_user(&self, phone: &str) -> Result<bool, Error> {

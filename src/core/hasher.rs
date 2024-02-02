@@ -1,4 +1,4 @@
-use anyhow::Error;
+use crate::core::error::Error;
 
 pub trait Hasher {
     fn generate_salt(&self) -> Result<String, Error>;

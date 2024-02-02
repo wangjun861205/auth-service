@@ -1,5 +1,4 @@
-use crate::core::token_manager::TokenManager;
-use anyhow::Error;
+use crate::core::{error::Error, token_manager::TokenManager};
 use jwt::{SignWithKey, SigningAlgorithm, VerifyWithKey, VerifyingAlgorithm};
 use serde::{Deserialize, Serialize};
 
@@ -31,12 +30,17 @@ where
 {
     async fn generate_token(&self, id: impl Into<String>) -> Result<String, Error> {
         let claims = Claims { id: id.into() };
-        let token = claims.sign_with_key(&self.key)?;
+        let token = claims
+            .sign_with_key(&self.key)
+            .map_err(|e| Error::FailedToSignToken(Box::new(e)))?;
         Ok(token.to_string())
     }
 
     async fn verify_token(&self, token: impl Into<String>) -> Result<String, Error> {
-        let claims: Claims = token.into().verify_with_key(&self.key)?;
+        let claims: Claims = token
+            .into()
+            .verify_with_key(&self.key)
+            .map_err(|e| Error::FailedToVerifyToken(Box::new(e)))?;
         Ok(claims.id)
     }
 }

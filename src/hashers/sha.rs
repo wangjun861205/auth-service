@@ -1,5 +1,4 @@
-use crate::core::hasher::Hasher;
-use anyhow::Error;
+use crate::core::{error::Error, hasher::Hasher};
 
 use hex::encode;
 use sha2::{Digest, Sha384};

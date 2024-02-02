@@ -1,4 +1,3 @@
-use anyhow::Error;
 use chrono::Utc;
 use mongodb::{
     bson::{doc, Document},
@@ -8,6 +7,7 @@ use mongodb::{
 
 use crate::core::{
     entities::{CreateUser, User},
+    error::Error,
     repository::Repository,
 };
 
@@ -28,7 +28,8 @@ impl Repository for MongodbRepository {
             .db
             .collection::<Document>("users")
             .count_documents(doc! {"phone": phone}, None)
-            .await?
+            .await
+            .map_err(|e| Error::FailedToCheckExists(Box::new(e)))?
             == 1)
     }
     async fn fetch_user(&self, phone: &str) -> Result<Option<User>, Error> {
@@ -48,7 +49,8 @@ impl Repository for MongodbRepository {
                     })
                     .build(),
             )
-            .await?)
+            .await
+            .map_err(|e| Error::FailedToFetchUser(Box::new(e)))?)
     }
 
     async fn insert_user(&self, user: &CreateUser) -> Result<String, Error> {
@@ -57,7 +59,7 @@ impl Repository for MongodbRepository {
             .collection::<Document>("users")
             .insert_one(
                 doc! {
-                    "phone": &user.phone,
+                    "phone": &user.identifier,
                     "password": &user.password,
                     "password_salt": &user.password_salt,
                     "created_at": Utc::now().to_rfc3339(),
@@ -65,11 +67,14 @@ impl Repository for MongodbRepository {
                 },
                 None,
             )
-            .await?;
+            .await
+            .map_err(|e| Error::FailedToInsertUser(Box::new(e)))?;
         Ok(res
             .inserted_id
             .as_object_id()
-            .ok_or(Error::msg("未找到object id"))?
+            .ok_or(Error::FailedToInsertUser(Box::new(
+                "未找到object id".to_owned(),
+            )))?
             .to_hex())
     }
 }
