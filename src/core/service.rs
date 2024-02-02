@@ -54,11 +54,11 @@ where
             .map_err(|e| Error::TokenManagerError(Box::new(e)))?;
         let token = self
             .token_manager
-            .sign_key(key)
+            .sign_key(&key)
             .await
             .map_err(|e| Error::TokenManagerError(Box::new(e)))?;
         self.repository
-            .set_token(identifier, &token)
+            .set_key(identifier, &key)
             .await
             .map_err(|e| Error::RepositoryError(Box::new(e)))?;
         Ok(token)

@@ -9,6 +9,6 @@ pub trait Repository {
         password: &str,
     ) -> Result<Option<String>, Error>;
     async fn exists_user(&self, identifier: &str) -> Result<bool, Error>;
-    async fn set_token(&self, identifier: &str, token: &str) -> Result<(), Error>;
+    async fn set_key(&self, identifier: &str, key: &str) -> Result<(), Error>;
     async fn get_id_by_key(&self, key: &str) -> Result<Option<String>, Error>;
 }

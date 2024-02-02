@@ -29,7 +29,7 @@ impl<T> TokenManager for JWTTokenManager<T>
 where
     T: SigningAlgorithm + VerifyingAlgorithm,
 {
-    async fn generate_key(&self) -> Result<impl Into<String>, Error> {
+    async fn generate_key(&self) -> Result<String, Error> {
         Ok(Uuid::new_v4().to_string())
     }
     async fn sign_key(&self, id: impl Into<String>) -> Result<String, Error> {

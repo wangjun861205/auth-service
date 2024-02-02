@@ -70,7 +70,7 @@ impl Repository for MongodbRepository {
         unimplemented!()
     }
 
-    async fn set_token(&self, identifier: &str, token: &str) -> Result<(), Error> {
+    async fn set_key(&self, identifier: &str, key: &str) -> Result<(), Error> {
         unimplemented!()
     }
 
