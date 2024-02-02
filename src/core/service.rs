@@ -46,10 +46,10 @@ where
         Ok(id)
     }
 
-    pub async fn generate_token(&self, phone: &str) -> Result<String, Error> {
+    pub async fn generate_token(&self, identifier: &str) -> Result<String, Error> {
         let user = self
             .repository
-            .fetch_user(phone)
+            .fetch_user(identifier)
             .await?
             .ok_or(Error::UserNotExists)?;
         self.token_manager.generate_token(&user.id).await
@@ -59,8 +59,8 @@ where
         self.token_manager.verify_token(token).await
     }
 
-    pub async fn login_by_password(&self, phone: &str, password: &str) -> Result<String, Error> {
-        if let Some(user) = self.repository.fetch_user(phone).await? {
+    pub async fn login(&self, identifier: &str, password: &str) -> Result<String, Error> {
+        if let Some(user) = self.repository.fetch_user(identifier).await? {
             if self.hasher.hash(password, user.password_salt)? != user.password {
                 return Err(Error::InvalidCredential);
             }
@@ -69,7 +69,7 @@ where
         Err(Error::InvalidCredential)
     }
 
-    pub async fn exists_user(&self, phone: &str) -> Result<bool, Error> {
-        self.repository.exists_user(phone).await
+    pub async fn exists_user(&self, identifier: &str) -> Result<bool, Error> {
+        self.repository.exists_user(identifier).await
     }
 }
