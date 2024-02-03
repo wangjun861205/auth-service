@@ -90,13 +90,13 @@ where
                 .hasher
                 .hash(password, &salt)
                 .map_err(|e| Error::HasherError(Box::new(e)))?;
-            if let Some(id) = self
+            if self
                 .repository
-                .get_id_by_credential(identifier, &hashed_password)
+                .exists_credential(identifier, &hashed_password)
                 .await
                 .map_err(|e| Error::RepositoryError(Box::new(e)))?
             {
-                return self.generate_token(&id).await;
+                return self.generate_token(identifier).await;
             }
         }
         Err(Error::InvalidCredential)
