@@ -43,6 +43,10 @@ impl Repository for MemoryRepository {
         unimplemented!()
     }
 
+    async fn delete_key(&self, identifier: &str) -> Result<(), Error> {
+        unimplemented!()
+    }
+
     async fn get_id_by_key(&self, token: &str) -> Result<Option<String>, Error> {
         unimplemented!()
     }
