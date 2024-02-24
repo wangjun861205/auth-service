@@ -10,7 +10,7 @@ use crate::core::{
 #[derive(Debug, Clone)]
 pub struct Service<R, H, T, C>
 where
-    R: Repository + Clone,
+    R: Repository<C> + Clone,
     H: Hasher + Clone,
     T: TokenManager + Clone,
     for<'de> C: Serialize + Deserialize<'de>,
@@ -23,7 +23,7 @@ where
 
 impl<R, H, T, C> Service<R, H, T, C>
 where
-    R: Repository + Clone,
+    R: Repository<C> + Clone,
     H: Hasher + Clone,
     T: TokenManager + Clone,
     for<'de> C: Serialize + Deserialize<'de>,
@@ -87,7 +87,7 @@ where
             {
                 let claim = self
                     .repository
-                    .generate_claim::<C>(identifier)
+                    .generate_claim(identifier)
                     .await
                     .map_err(|e| Error::FailedToGenerateClaim(Box::new(e)))?;
                 return self.generate_token(claim).await;

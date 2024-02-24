@@ -54,7 +54,7 @@ type AuthTokenFuture<S: Service<ServiceRequest>> =
 pub struct AuthTokenService<S, R, H, T, C>
 where
     S: Service<ServiceRequest>,
-    R: Repository + Clone + 'static,
+    R: Repository<C> + Clone + 'static,
     H: Hasher + Clone + 'static,
     T: TokenManager + Clone + 'static,
     for<'de> C: Deserialize<'de> + Serialize + Claim,
@@ -69,7 +69,7 @@ impl<S, R, H, T, C> Service<ServiceRequest> for AuthTokenService<S, R, H, T, C>
 where
     S: Service<ServiceRequest> + 'static,
     S::Error: Display + Debug,
-    R: Repository + Clone + 'static,
+    R: Repository<C> + Clone + 'static,
     H: Hasher + Clone + 'static,
     T: TokenManager + Clone + 'static,
     for<'de> C: Deserialize<'de> + Serialize + Claim + Clone + 'static,
@@ -110,7 +110,7 @@ where
 
 pub struct AuthTokenMiddleware<R, H, T, C>
 where
-    R: Repository + Clone + 'static,
+    R: Repository<C> + Clone + 'static,
     H: Hasher + Clone + 'static,
     T: TokenManager + Clone + 'static,
     for<'de> C: Serialize + Deserialize<'de>,
@@ -121,7 +121,7 @@ where
 
 impl<R, H, T, C> AuthTokenMiddleware<R, H, T, C>
 where
-    R: Repository + Clone + 'static,
+    R: Repository<C> + Clone + 'static,
     H: Hasher + Clone + 'static,
     T: TokenManager + Clone + 'static,
     for<'de> C: Serialize + Deserialize<'de>,
@@ -136,7 +136,7 @@ where
 
 impl<S, R, H, T, C> Transform<S, ServiceRequest> for AuthTokenMiddleware<R, H, T, C>
 where
-    R: Repository + Clone + 'static,
+    R: Repository<C> + Clone + 'static,
     H: Hasher + Clone + 'static,
     T: TokenManager + Clone + 'static,
     S: Service<ServiceRequest> + 'static,
