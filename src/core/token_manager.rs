@@ -1,7 +1,12 @@
+use serde::{Deserialize, Serialize};
+
 use crate::core::error::Error;
 
 pub trait TokenManager {
-    async fn generate_key(&self) -> Result<String, Error>;
-    async fn sign_key(&self, id: impl Into<String>) -> Result<String, Error>;
-    async fn verify_token(&self, token: impl Into<String>) -> Result<String, Error>;
+    async fn sign<C>(&self, claim: C) -> Result<String, Error>
+    where
+        C: Serialize;
+    async fn verify_token<C>(&self, token: impl Into<String>) -> Result<C, Error>
+    where
+        for<'de> C: Deserialize<'de>;
 }

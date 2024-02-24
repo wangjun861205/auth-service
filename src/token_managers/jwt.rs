@@ -29,22 +29,22 @@ impl<T> TokenManager for JWTTokenManager<T>
 where
     T: SigningAlgorithm + VerifyingAlgorithm,
 {
-    async fn generate_key(&self) -> Result<String, Error> {
-        Ok(Uuid::new_v4().to_string())
-    }
-    async fn sign_key(&self, id: impl Into<String>) -> Result<String, Error> {
-        let claims = Claims { id: id.into() };
-        let token = claims
+    async fn sign<C>(&self, claim: C) -> Result<String, Error>
+    where
+        C: Serialize,
+    {
+        claim
             .sign_with_key(&self.key)
-            .map_err(|e| Error::FailedToSignToken(Box::new(e)))?;
-        Ok(token.to_string())
+            .map_err(|e| Error::FailedToSignToken(Box::new(e)))
     }
 
-    async fn verify_token(&self, token: impl Into<String>) -> Result<String, Error> {
-        let claims: Claims = token
+    async fn verify_token<C>(&self, token: impl Into<String>) -> Result<C, Error>
+    where
+        for<'de> C: Deserialize<'de>,
+    {
+        token
             .into()
             .verify_with_key(&self.key)
-            .map_err(|e| Error::FailedToVerifyToken(Box::new(e)))?;
-        Ok(claims.id)
+            .map_err(|e| Error::FailedToVerifyToken(Box::new(e)))
     }
 }

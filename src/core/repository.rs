@@ -8,4 +8,5 @@ pub trait Repository {
     async fn set_key(&self, identifier: &str, key: &str) -> Result<(), Error>;
     async fn delete_key(&self, identifier: &str) -> Result<(), Error>;
     async fn get_id_by_key(&self, key: &str) -> Result<Option<String>, Error>;
+    async fn generate_claim<C>(&self, identifier: &str) -> Result<C, Error>;
 }

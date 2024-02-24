@@ -1,31 +1,39 @@
+use std::marker::PhantomData;
+
+use serde::{Deserialize, Serialize};
+
 use crate::core::{
     entities::CreateUser, error::Error, hasher::Hasher, repository::Repository,
     token_manager::TokenManager,
 };
 
 #[derive(Debug, Clone)]
-pub struct Service<R, H, T>
+pub struct Service<R, H, T, C>
 where
     R: Repository + Clone,
     H: Hasher + Clone,
     T: TokenManager + Clone,
+    for<'de> C: Serialize + Deserialize<'de>,
 {
     pub repository: R,
     pub hasher: H,
     pub token_manager: T,
+    _phantom: PhantomData<C>,
 }
 
-impl<R, H, T> Service<R, H, T>
+impl<R, H, T, C> Service<R, H, T, C>
 where
     R: Repository + Clone,
     H: Hasher + Clone,
     T: TokenManager + Clone,
+    for<'de> C: Serialize + Deserialize<'de>,
 {
     pub fn new(repository: R, hasher: H, token_manager: T) -> Self {
         Self {
             repository,
             hasher,
             token_manager,
+            _phantom: PhantomData,
         }
     }
 
@@ -46,37 +54,18 @@ where
         Ok(id)
     }
 
-    pub async fn generate_token(&self, identifier: &str) -> Result<String, Error> {
-        let key = self
-            .token_manager
-            .generate_key()
+    pub async fn generate_token(&self, claim: C) -> Result<String, Error> {
+        self.token_manager
+            .sign(claim)
             .await
-            .map_err(|e| Error::TokenManagerError(Box::new(e)))?;
-        let token = self
-            .token_manager
-            .sign_key(&key)
-            .await
-            .map_err(|e| Error::TokenManagerError(Box::new(e)))?;
-        self.repository
-            .set_key(identifier, &key)
-            .await
-            .map_err(|e| Error::RepositoryError(Box::new(e)))?;
-        Ok(token)
+            .map_err(|e| Error::TokenManagerError(Box::new(e)))
     }
 
-    pub async fn verify_token(&self, token: &str) -> Result<String, Error> {
-        let key = self
-            .token_manager
+    pub async fn verify_token(&self, token: &str) -> Result<C, Error> {
+        self.token_manager
             .verify_token(token)
             .await
-            .map_err(|e| Error::TokenManagerError(Box::new(e)))?;
-        let id = self
-            .repository
-            .get_id_by_key(&key)
-            .await
-            .map_err(|e| Error::RepositoryError(Box::new(e)))?
-            .ok_or(Error::InvalidToken)?;
-        Ok(id)
+            .map_err(|e| Error::TokenManagerError(Box::new(e)))
     }
 
     pub async fn login(&self, identifier: &str, password: &str) -> Result<String, Error> {
@@ -96,7 +85,12 @@ where
                 .await
                 .map_err(|e| Error::RepositoryError(Box::new(e)))?
             {
-                return self.generate_token(identifier).await;
+                let claim = self
+                    .repository
+                    .generate_claim::<C>(identifier)
+                    .await
+                    .map_err(|e| Error::FailedToGenerateClaim(Box::new(e)))?;
+                return self.generate_token(claim).await;
             }
         }
         Err(Error::InvalidCredential)
