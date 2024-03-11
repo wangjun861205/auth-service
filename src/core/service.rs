@@ -96,10 +96,6 @@ where
         Err(Error::InvalidCredential)
     }
 
-    pub async fn logout(&self, identifier: &str) -> Result<(), Error> {
-        self.repository.delete_key(identifier).await
-    }
-
     pub async fn exists_user(&self, identifier: &str) -> Result<bool, Error> {
         self.repository.exists_user(identifier).await
     }
