@@ -6,5 +6,4 @@ pub trait Repository<C> {
     async fn exists_credential(&self, identifier: &str, password: &str) -> Result<bool, Error>;
     async fn exists_user(&self, identifier: &str) -> Result<bool, Error>;
     async fn generate_claim(&self, identifier: &str) -> Result<C, Error>;
-    async fn get_id_by_identifier(&self, identifier: &str) -> Result<String, Error>;
 }
