@@ -29,12 +29,12 @@ where
     T: TokenManager + Clone,
     for<'de> C: Serialize + Deserialize<'de>,
 {
-    pub fn new(repository: R, hasher: H, token_manager: T, single_device: Option<bool>) -> Self {
+    pub fn new(repository: R, hasher: H, token_manager: T, single_device: bool) -> Self {
         Self {
             repository,
             hasher,
             token_manager,
-            single_device: single_device.unwrap_or(false),
+            single_device,
             _phantom: PhantomData,
         }
     }
