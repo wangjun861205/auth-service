@@ -16,6 +16,8 @@ pub enum Error {
     FailedToSetKey(Box<dyn Debug>),
     FailedToDeleteKey(Box<dyn Debug>),
     FailedToGenerateClaim(Box<dyn Debug>),
+    FailedToUpdateToken(Box<dyn Debug>),
+    FailedToCheckTokenExists(Box<dyn Debug>),
     IdentifierAlreadyExists,
     UserNotExists,
     InvalidCredential,
@@ -39,6 +41,10 @@ impl Display for Error {
             Error::FailedToSetKey(e) => write!(f, "Failed to set key: {:?}", e),
             Error::FailedToDeleteKey(e) => write!(f, "Failed to delete key: {:?}", e),
             Error::FailedToGenerateClaim(e) => write!(f, "Failed to generate claim: {:?}", e),
+            Error::FailedToUpdateToken(e) => write!(f, "Failed to update token: {:?}", e),
+            Error::FailedToCheckTokenExists(e) => {
+                write!(f, "Failed to check token exists: {:?}", e)
+            }
             Error::IdentifierAlreadyExists => write!(f, "Identifier already exists"),
             Error::UserNotExists => write!(f, "User not exists"),
             Error::InvalidCredential => write!(f, "Invalid credential"),
