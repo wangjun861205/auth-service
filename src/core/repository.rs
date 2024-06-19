@@ -11,7 +11,7 @@ pub trait Repository<C> {
         Ok(())
     }
     // token是否存在(是否当前有效)， 用于单设备登录，如果允许多设备登录，可使用默认实现
-    async fn exists_token(&self, identifier: &str) -> Result<bool, Error> {
+    async fn exists_token(&self, token: &str) -> Result<bool, Error> {
         Ok(true)
     }
 }

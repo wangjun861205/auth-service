@@ -20,7 +20,6 @@ pub enum Error {
     UserNotExists,
     InvalidCredential,
     InvalidToken,
-    FailedToGetToken(Box<dyn Debug>),
 }
 
 impl Display for Error {
@@ -44,7 +43,6 @@ impl Display for Error {
             Error::UserNotExists => write!(f, "User not exists"),
             Error::InvalidCredential => write!(f, "Invalid credential"),
             Error::InvalidToken => write!(f, "Invalid token"),
-            Error::FailedToGetToken(e) => write(f, "Failed to get token: {:?}", e),
         }
     }
 }

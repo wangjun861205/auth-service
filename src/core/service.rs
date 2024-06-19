@@ -69,10 +69,8 @@ where
             .verify_token(token)
             .await
             .map_err(|e| Error::TokenManagerError(Box::new(e)))?;
-        if self.single_device {
-            if !self.exists_token(token) {
-                return Err(Error::InvalidToken);
-            }
+        if self.single_device && !self.repository.exists_token(token).await? {
+            return Err(Error::InvalidToken);
         }
         Ok(claim)
     }
@@ -103,7 +101,7 @@ where
                 if self.single_device {
                     self.repository.update_token(identifier, &token).await?;
                 }
-                Ok(token)
+                return Ok(token);
             }
         }
         Err(Error::InvalidCredential)
