@@ -18,6 +18,7 @@ where
     pub repository: R,
     pub hasher: H,
     pub token_manager: T,
+    pub single_device: bool, // 是否是单设备登录模式, 开启后同一时间只允许同一设备登录， 其他设备登录会使当前设备的登录失效
     _phantom: PhantomData<C>,
 }
 
@@ -28,11 +29,12 @@ where
     T: TokenManager + Clone,
     for<'de> C: Serialize + Deserialize<'de>,
 {
-    pub fn new(repository: R, hasher: H, token_manager: T) -> Self {
+    pub fn new(repository: R, hasher: H, token_manager: T, single_device: Option<bool>) -> Self {
         Self {
             repository,
             hasher,
             token_manager,
+            single_device: single_device.unwrap_or(false),
             _phantom: PhantomData,
         }
     }
@@ -61,11 +63,23 @@ where
             .map_err(|e| Error::TokenManagerError(Box::new(e)))
     }
 
-    pub async fn verify_token(&self, token: &str) -> Result<C, Error> {
-        self.token_manager
+    pub async fn verify_token(&self, identifier: &str, token: &str) -> Result<C, Error> {
+        let claim = self
+            .token_manager
             .verify_token(token)
             .await
-            .map_err(|e| Error::TokenManagerError(Box::new(e)))
+            .map_err(|e| Error::TokenManagerError(Box::new(e)))?;
+        if self.single_device {
+            let t = self
+                .repository
+                .get_token(identifier)
+                .await?
+                .ok_or(Error::FailedToGetToken(Box::new("获取token失败")))?;
+            if t != token {
+                return Err(Error::InvalidToken);
+            }
+        }
+        Ok(claim)
     }
 
     pub async fn login(&self, identifier: &str, password: &str) -> Result<String, Error> {
@@ -90,7 +104,11 @@ where
                     .generate_claim(identifier)
                     .await
                     .map_err(|e| Error::FailedToGenerateClaim(Box::new(e)))?;
-                return self.generate_token(claim).await;
+                let token = self.generate_token(claim).await?;
+                if self.single_device {
+                    self.repository.update_token(identifier, &token).await?;
+                }
+                Ok(token)
             }
         }
         Err(Error::InvalidCredential)
