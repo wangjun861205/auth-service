@@ -10,8 +10,8 @@ pub trait Repository<C> {
     async fn update_token(&self, identifier: &str, token: &str) -> Result<(), Error> {
         Ok(())
     }
-    // 获取当前identifier对应的token， 用于单设备登录，如果允许多设备登录，可使用默认实现
-    async fn get_token(&self, identifier: &str) -> Result<Option<String>, Error> {
-        Ok(None)
+    // token是否存在(是否当前有效)， 用于单设备登录，如果允许多设备登录，可使用默认实现
+    async fn exists_token(&self, identifier: &str) -> Result<bool, Error> {
+        Ok(true)
     }
 }

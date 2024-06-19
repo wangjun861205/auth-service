@@ -63,19 +63,14 @@ where
             .map_err(|e| Error::TokenManagerError(Box::new(e)))
     }
 
-    pub async fn verify_token(&self, identifier: &str, token: &str) -> Result<C, Error> {
+    pub async fn verify_token(&self, token: &str) -> Result<C, Error> {
         let claim = self
             .token_manager
             .verify_token(token)
             .await
             .map_err(|e| Error::TokenManagerError(Box::new(e)))?;
         if self.single_device {
-            let t = self
-                .repository
-                .get_token(identifier)
-                .await?
-                .ok_or(Error::FailedToGetToken(Box::new("获取token失败")))?;
-            if t != token {
+            if !self.exists_token(token) {
                 return Err(Error::InvalidToken);
             }
         }
